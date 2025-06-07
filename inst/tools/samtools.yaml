@@ -1,0 +1,118 @@
+tool_name: "samtools"
+display_name: "SAMtools"
+description: "Utilities for manipulating alignments in the SAM, BAM, and CRAM formats"
+citation: "10.1093/bioinformatics/btp352"
+package:
+  name: "samtools"
+  channel: "bioconda"
+  version: latest
+
+commands:
+  view:
+    description: "View and convert SAM/BAM/CRAM files"
+    binary: "samtools"
+    help_flag: "--help"
+    inputs:
+      input:
+        type: file
+        required: true
+        description: "Input SAM/BAM/CRAM file"
+      output:
+        type: file
+        required: true
+        description: "Output file path"
+      region:
+        type: string
+        required: false
+        description: "Region to extract (e.g., 'chr1:1000-2000')"
+      extra:
+        type: string
+        required: false
+        default: ""
+        description: "Additional flags for samtools view"
+    outputs:
+      output_file:
+        type: file
+        description: "Converted file"
+    args_template: >
+      samtools view {extra} {input}{% if region %} {region}{% endif %} -o {output}
+
+  index:
+    description: "Index BAM or CRAM files"
+    binary: "samtools"
+    help_flag: "--help"
+    inputs:
+      input:
+        type: file
+        required: true
+        description: "Input BAM/CRAM file"
+      output:
+        type: file
+        required: false
+        description: "Output index file path (optional)"
+      extra:
+        type: string
+        required: false
+        default: ""
+        description: "Additional flags for samtools index"
+    outputs:
+      index_file:
+        type: file
+        description: "Index file (.bai or .crai)"
+    args_template: >
+      samtools index {extra} {input}{% if output %} {output}{% endif %}
+
+  faidx:
+    description: "Index FASTA file"
+    binary: "samtools"
+    help_flag: "--help"
+    inputs:
+      fasta:
+        type: file
+        required: true
+        description: "Input FASTA file"
+      region:
+        type: string
+        required: false
+        description: "Region to extract (e.g., 'chr1:1000-2000')"
+      extra:
+        type: string
+        required: false
+        default: ""
+        description: "Additional flags for samtools faidx"
+    outputs:
+      fai_index:
+        type: file
+        description: "FASTA index file (.fai)"
+    args_template: >
+      samtools faidx {extra} {fasta} {region}
+
+  split:
+    description: "Split BAM files into multiple outputs"
+    binary: "samtools"
+    help_flag: "--help"
+    inputs:
+      input:
+        type: file
+        required: true
+        description: "Input BAM file"
+      extra:
+        type: string
+        required: false
+        default: ""
+        description: "Additional flags for samtools split"
+    outputs:
+      reads1:
+        type: file
+        required: true
+        description: "Output file for read 1"
+      reads2:
+        type: file
+        required: true
+        description: "Output file for read 2"
+      unmatched:
+        type: file
+        required: true
+        description: "Output file for unmatched reads"
+    args_template: >
+      samtools fastq {extra} -1 {reads1} -2 {reads2} -s {unmatched} {input}

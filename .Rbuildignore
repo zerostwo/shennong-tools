@@ -1,0 +1,15 @@
+# R-specific
+.Rproj.user
+.Rhistory
+
+# Dev tools & editors
+dev
+.lintr
+.cursorrules
+.cursorignore
+.cursor
+
+# Others
+^README\.Rmd$
+^.*\.Rproj$
+^LICENSE\.md$

@@ -1,0 +1,75 @@
+tool_name: "hisat2"
+description: "Fast and sensitive alignment of sequencing reads to a population of genomes"
+citation: "10.1038/nmeth.3317"
+
+package:
+  name: "hisat2"
+  channel: "bioconda"
+  version: latest
+  requires:
+    - name: "samtools"
+      channel: "bioconda"
+      version: latest
+
+commands:
+  index:
+    description: "Build HISAT2 index from a reference genome FASTA file"
+    binary: "hisat2-build"
+    help_flag: "--help"
+    inputs:
+      fasta:
+        type: file
+        required: true
+        description: "Comma-separated list of files with ref sequences"
+      threads:
+        type: integer
+        required: false
+        default: 8
+        description: "Number of threads to use"
+      extra:
+        type: string
+        required: false
+        default: ""
+        description: "Additional flags for hisat2-build"
+    outputs:
+      index:
+        type: string
+        required: true
+        description: "HISAT2 index files basename prefix"
+    args_template: >
+      hisat2-build -p {threads} {extra} {fasta} {index}
+
+  align:
+    description: "Align reads to reference genome and convert output to BAM using samtools"
+    binary: "hisat2"
+    help_flag: "--help"
+    inputs:
+      index:
+        type: file
+        required: true
+        description: "Index filename prefix (minus trailing .X.ht2)."
+      reads1:
+        type: file
+        required: true
+        description: "FASTQ file for read 1 or single-end reads"
+      reads2:
+        type: file
+        required: false
+        description: "FASTQ file for read 2 (for paired-end reads)"
+      threads:
+        type: integer
+        required: false
+        default: 4
+        description: "Number of threads to use"
+      extra:
+        type: string
+        required: false
+        default: ""
+        description: "Additional flags for hisat2"
+    outputs:
+      bam:
+        type: file
+        required: true
+        description: "Output BAM file path"
+    args_template: >
+      hisat2 --threads {threads} {extra} -x {index}{% if reads2 %} -1 {reads1} -2 {reads2}{% endif %}{% if not reads2 %} -U {reads1}{% endif %} | samtools view -Sbh -o {bam}

@@ -1,0 +1,12 @@
+# R
+.Rproj.user
+.Rhistory
+
+# Dev tools & editors
+dev
+.lintr
+.cursorrules
+.cursorignore
+.cursor
+
+# Others
