@@ -5,22 +5,22 @@
 \title{Run Tool Command}
 \usage{
 sn_run(
-  tool,
+  tool_name,
   command,
+  version = NULL,
   ...,
   dry_run = FALSE,
   work_dir = ".",
-  env_path = NULL,
-  extra = NULL,
-  registry = NULL,
-  log_level = getOption("sn.log_level", "normal"),
-  log_dir = getOption("sn.log_dir", NULL)
+  log_level = "normal",
+  log_dir = NULL
 )
 }
 \arguments{
-\item{tool}{Character. Tool name from registry.}
+\item{tool_name}{Character. Name of the tool to run.}
 
 \item{command}{Character. Command name within the tool.}
+
+\item{version}{Character. Version of the tool to use. If NULL, uses first available version.}
 
 \item{...}{Named parameters for the tool command.}
 
@@ -28,68 +28,31 @@ sn_run(
 
 \item{work_dir}{Character. Working directory for execution.}
 
-\item{env_path}{Character. Path to conda environment (optional).}
+\item{log_level}{Character or Integer. Logging level: "silent"/"quiet"/0,
+"minimal"/1, "normal"/2. Default "normal".}
 
-\item{extra}{Character. Additional command-line arguments.}
-
-\item{registry}{List. Tool registry (optional, will load if not provided).}
-
-\item{log_level}{Character or Integer. Logging level: "silent"/"quiet"/0 (no
-output), "minimal"/1 (R messages only), "normal"/2 (R messages + tool
-output). Default can be set via options("sn.log_level").}
-
-\item{log_dir}{Character. Directory to save log files. If NULL, uses output
-directory or work_dir. Default can be set via options("sn.log_dir").}
+\item{log_dir}{Character. Directory to save log files. If NULL, uses work_dir.}
 }
 \value{
-List containing execution results (exit_code, stdout, stderr,
-  command).
+ToolCall object containing execution results.
 }
 \description{
-This is the main unified API function for executing bioinformatics tools
-registered via YAML configurations. It handles parameter validation, template
-rendering, and command execution.
+Execute a bioinformatics tool command. This function automatically manages
+the toolbox and installation of tools.
 }
 \examples{
 \dontrun{
-# Set global options
-options(sn.log_level = "normal", sn.log_dir = "~/logs")
-
-# Build HISAT2 index (logs saved to output directory)
-sn_run("hisat2", "build",
-  fasta = "genome.fa",
-  index = "genome_index",
-  threads = 8
-)
-
-# Align reads with HISAT2 (logs saved to custom directory)
-sn_run("hisat2", "align",
-  index = "genome_index",
-  reads1 = "sample_R1.fastq.gz",
-  reads2 = "sample_R2.fastq.gz",
-  bam = "aligned.bam",
-  threads = 4,
-  log_dir = "~/analysis_logs"
+# Run tool command directly
+result <- sn_run("samtools", "view",
+  input = "test.bam",
+  output = "filtered.bam",
+  extra = "-q 20"
 )
 
 # Dry run to see command
-sn_run("samtools", "index",
-  input = "aligned.bam",
-  output = "aligned.bam.bai",
+result <- sn_run("samtools", "index",
+  input = "test.bam",
   dry_run = TRUE
 )
-
-# Silent mode (no output but still saves logs)
-sn_run("samtools", "faidx",
-  fasta = "genome.fa",
-  region = "chr1",
-  log_level = 0
-) # or "silent"
-
-# Use numeric log levels
-sn_run("samtools", "index",
-  input = "aligned.bam",
-  log_level = 2
-) # normal
 }
 }

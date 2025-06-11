@@ -12,8 +12,8 @@ sn_get_tool_config(tool_name, registry = NULL)
 \item{registry}{List. Tool registry (optional, will load if not provided).}
 }
 \value{
-List. Tool configuration.
+List with tool configuration or NULL if not found.
 }
 \description{
-Retrieve configuration for a specific tool from the registry.
+Get configuration for a specific tool from the registry.
 }

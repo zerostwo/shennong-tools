@@ -1,0 +1,72 @@
+tool_name: subread
+description: A ultrafast and accurate read summarization program
+citation: "10.1093/bioinformatics/btt656"
+
+environment:
+  channels:
+    - bioconda
+    - conda-forge
+  dependencies:
+    - subread
+
+commands:
+  featurecounts:
+    description: Count reads mapped to genomic features
+    binary: featureCounts
+    help_flag: --help
+    inputs:
+      bam_files:
+        datatype: [bam, sam]
+        required: true
+        description: Input BAM/SAM files for read counting (space-separated if multiple)
+      annotation:
+        datatype: [gtf, gff]
+        required: true
+        description: Annotation file in GTF/GFF format
+    outputs:
+      counts:
+        datatype: txt
+        required: true
+        description: Output count matrix file
+    params:
+      feature_type:
+        datatype: string
+        default: "exon"
+        description: Feature type in GTF annotation
+      attribute_type:
+        datatype: string
+        default: "gene_id"
+        description: Attribute type in GTF annotation
+      stranded:
+        datatype: integer
+        default: 0
+        description: "Strand-specific read counting (0: unstranded, 1: stranded, 2: reversely stranded)"
+      paired:
+        datatype: boolean
+        default: true
+        description: Treat input as paired-end reads
+      threads:
+        datatype: integer
+        default: 1
+        description: Number of threads to use
+    shell: >
+      featureCounts -a {{ annotation }} -o {{ counts }} -t {{ feature_type }}
+      -g {{ attribute_type }} -s {{ stranded }} -T {{ threads }}
+      {% if paired %}-p{% endif %} {{ bam_files }}
+
+  buildindex:
+    description: Build Subread index from reference genome
+    binary: subread-buildindex
+    help_flag: --help
+    inputs:
+      fasta:
+        datatype: fasta
+        required: true
+        description: Input reference genome FASTA file
+    outputs:
+      index:
+        datatype: prefix
+        required: true
+        description: Output index prefix
+    shell: >
+      subread-buildindex -o {{ index }} {{ fasta }}

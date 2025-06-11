@@ -2,20 +2,36 @@
 % Please edit documentation in R/help.R
 \name{sn_help}
 \alias{sn_help}
-\title{Help Function for Tool Commands}
+\title{Get Help for Tool or Command}
 \usage{
-sn_help(tool, command = NULL, registry = NULL)
+sn_help(tool_name, command = NULL, version = NULL, raw = FALSE)
 }
 \arguments{
-\item{tool}{Character. Tool name.}
+\item{tool_name}{Character. Name of the tool.}
 
-\item{command}{Character. Command name (optional).}
+\item{command}{Character. Specific command (optional).}
 
-\item{registry}{List. Tool registry (optional).}
+\item{version}{Character. Tool version (optional).}
+
+\item{raw}{Logical. If TRUE, shows raw tool help output using the tool's help flag.
+If FALSE (default), shows formatted help from YAML configuration.}
 }
 \value{
-Invisible NULL (prints help to console).
+Invisible. Help information is printed to console.
 }
 \description{
-Display help information for a specific tool command.
+Displays help information for a tool or specific command. This function automatically
+manages the toolbox and can be called directly with tool name.
+}
+\examples{
+\dontrun{
+# Get help for tool
+sn_help("samtools")
+
+# Get help for specific command
+sn_help("samtools", "view")
+
+# Get raw tool help output
+sn_help("samtools", raw = TRUE)
+}
 }

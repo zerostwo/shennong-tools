@@ -14,11 +14,13 @@ Represents a single tool invocation with inputs, outputs, and parameters.
 
 \item{\code{command}}{Character. The specific command/subcommand.}
 
-\item{\code{args}}{List. Command arguments and parameters.}
+\item{\code{rendered_command}}{Character. The fully rendered command string.}
 
 \item{\code{inputs}}{List. Input files/objects with their roles.}
 
 \item{\code{outputs}}{List. Expected output files/objects.}
+
+\item{\code{params}}{List. Command parameters.}
 
 \item{\code{work_dir}}{Character. Working directory for execution.}
 
@@ -26,14 +28,12 @@ Represents a single tool invocation with inputs, outputs, and parameters.
 
 \item{\code{status}}{Character. Execution status ("pending", "running", "success", "failed").}
 
-\item{\code{start_time}}{POSIXct. When execution started.}
-
-\item{\code{end_time}}{POSIXct. When execution ended.}
-
 \item{\code{return_code}}{Numeric. Process return code.}
 
 \item{\code{stdout}}{Character. Captured stdout.}
 
 \item{\code{stderr}}{Character. Captured stderr.}
+
+\item{\code{resources}}{List. Resource usage including runtime, memory, and CPU.}
 }}
 

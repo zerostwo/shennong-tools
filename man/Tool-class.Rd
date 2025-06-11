@@ -6,27 +6,23 @@
 \title{Tool S4 Class}
 \description{
 Represents a bioinformatics tool with its configuration and metadata.
+Based on YAML configuration files that define tools with their environments,
+commands, and parameters.
 }
 \section{Slots}{
 
 \describe{
-\item{\code{name}}{Character. Tool name (e.g., "star", "hisat2").}
+\item{\code{tool_name}}{Character. Tool name from YAML (e.g., "samtools", "hisat2").}
 
-\item{\code{version}}{Character. Tool version.}
-
-\item{\code{package_name}}{Character. Package name for installation (may differ from tool name).}
-
-\item{\code{binary_name}}{Character. Binary/executable name (may differ from tool name).}
-
-\item{\code{env_path}}{Character. Path to conda/mamba environment.}
-
-\item{\code{channel}}{Character. Conda channel (e.g., "bioconda").}
+\item{\code{version}}{Character. Tool version (e.g., "1.22", "dev").}
 
 \item{\code{description}}{Character. Tool description.}
 
-\item{\code{commands}}{List. Available commands/subcommands for this tool.}
+\item{\code{citation}}{Character. Citation information for the tool.}
 
-\item{\code{citation}}{List. Citation information for the tool.}
+\item{\code{environment}}{List. Environment specification including channels and dependencies.}
+
+\item{\code{commands}}{List. Available commands/subcommands for this tool.}
 
 \item{\code{installed}}{Logical. Whether the tool is currently installed.}
 

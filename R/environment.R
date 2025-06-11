@@ -135,7 +135,6 @@ sn_install_tool <- function(tool_name,
                             yaml = NULL,
                             overwrite = FALSE,
                             mamba = NULL) {
-
   # Validate tool_name
   if (!is.character(tool_name) || length(tool_name) != 1 || nchar(tool_name) == 0) {
     cli_abort("tool_name must be a non-empty character string")
@@ -202,8 +201,16 @@ sn_install_tool <- function(tool_name,
   return(mamba)
 }
 
+#' Get Latest Version from PyPI
 #' @keywords internal
-.get_latest_tool_version <- function(tool, mamba = NULL, channel = "bioconda") {
+.get_latest_version_from_pypi <- function(package) {
+  url <- sprintf("https://pypi.org/pypi/%s/json", package)
+  json <- fromJSON(url)
+  json$info$version
+}
+
+#' @keywords internal
+.get_latest_version_from_conda <- function(tool, mamba = NULL, channel = "bioconda") {
   results <- .mamba_search(tool, channel = channel)
   pkgs <- results$result$pkgs
 
@@ -255,7 +262,7 @@ sn_install_tool <- function(tool_name,
     cli_abort("Failed to search for tool '{tool}': {result$stderr}")
   }
 
-  return(jsonlite::fromJSON(result$stdout))
+  return(fromJSON(result$stdout))
 }
 
 #' @keywords internal
@@ -274,8 +281,7 @@ sn_install_tool <- function(tool_name,
     cli_abort("File must have .yaml or .yml extension: {yaml_file}")
   }
 
-  mamba <- mamba %||% .check_mamba()
-  base_dir <- base_dir %||% tools::R_user_dir(
+  base_dir <- base_dir %||% R_user_dir(
     package = "shennong-tools", which = "data"
   )
 
@@ -333,13 +339,12 @@ sn_install_tool <- function(tool_name,
     mamba = NULL,
     channel = "bioconda",
     overwrite = FALSE) {
-
-  base_dir <- base_dir %||% tools::R_user_dir(
+  base_dir <- base_dir %||% R_user_dir(
     package = "shennong-tools", which = "data"
   )
 
   # Use tool_name for version lookup
-  version <- version %||% .get_latest_tool_version(tool_name, mamba, channel)
+  version <- version %||% .get_latest_version_from_conda(tool_name, mamba, channel)
 
   # Expand base path and env path
   base_dir <- path_expand(base_dir)

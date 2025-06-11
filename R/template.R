@@ -1,253 +1,380 @@
-#' Render Template with Parameters
+#' Render Template with Parameters using Jinjar
 #'
-#' This function uses glue to render the args_template from tool configuration
-#' with user-provided parameters and default values.
+#' Uses the jinjar package to render command templates with user-provided
+#' parameters. Supports Jinja2 syntax for conditional logic and variable substitution.
 #'
-#' @param template Character. Template string from tool configuration.
+#' @param template Character. Template string from tool configuration (shell or python field).
 #' @param params List. Named list of parameters to substitute in template.
 #' @param inputs List. Input definitions from tool configuration.
-#' @param cmd_config List. Command configuration from tool YAML.
+#' @param outputs List. Output definitions from tool configuration.
+#' @param command_config List. Complete command configuration from tool YAML.
+#' @param show_messages Logical. Whether to show template rendering messages.
 #'
 #' @return Character. Rendered command string.
 #' @export
-sn_render_template <- function(template, params, inputs, cmd_config) {
-  # Prepare parameters with defaults from inputs
-  final_params <- .sn_prepare_params(params, inputs)
+#'
+#' @examples
+#' \dontrun{
+#' template <- "samtools view -@ {{ threads }} {{ input }} -o {{ output }}"
+#' params <- list(threads = 4, input = "test.bam", output = "filtered.bam")
+#' rendered <- sn_render_template(template, params, inputs, outputs, cmd_config)
+#' }
+sn_render_template <- function(template, params, inputs = list(), outputs = list(), command_config = list(), show_messages = TRUE) {
+  # Prepare parameters with defaults
+  final_params <- .prepare_template_params(params, inputs, outputs, command_config)
 
-  # Add output parameters from user params (outputs don't have defaults typically)
-  outputs <- cmd_config$outputs %||% list()
-  for (output_name in names(outputs)) {
-    if (output_name %in% names(params)) {
-      final_params[[output_name]] <- params[[output_name]]
-    }
-  }
+  # Validate required parameters
+  .validate_template_params(final_params, inputs, outputs)
 
-  # Validate required parameters (only for inputs)
-  .sn_validate_params(final_params, inputs)
+  # Handle special parameter types
+  final_params <- .handle_special_param_types(final_params, inputs, command_config)
 
-  # Validate required outputs are provided
-  .sn_validate_outputs(final_params, outputs, params)
-
-  # Add special handling for conditional logic in templates
-  # Convert logical values to proper conditional format
-  for (name in names(final_params)) {
-    if (is.logical(final_params[[name]])) {
-      final_params[[name]] <- as.character(final_params[[name]])
-    }
-  }
-
-  # Render using glue with custom delimiter to handle jinja2-like syntax
+  # Render using jinjar
   tryCatch(
     {
-      # First pass: handle conditional blocks (simplified jinja2-like)
-      processed_template <- .sn_process_conditionals(template, final_params)
+      # Create arguments list preserving NULL values
+      args <- list(.x = template) # First argument is .x (the template)
+      # Add all parameters from final_params
+      for (param_name in names(final_params)) {
+        if (is.null(final_params[[param_name]])) {
+          args[param_name] <- list(NULL) # Preserve NULL values
+        } else {
+          args[[param_name]] <- final_params[[param_name]]
+        }
+      }
 
-      # Second pass: handle simple glue-style substitutions
-      rendered <- glue(processed_template, .envir = list2env(final_params), .na = "")
+      rendered <- do.call(render, args)
 
       # Clean up extra whitespace
       rendered <- gsub("\\s+", " ", rendered)
       rendered <- trimws(rendered)
 
-      cli_alert_success("Template rendered successfully")
-
+      if (show_messages) {
+        cli_alert_success("Template rendered successfully")
+      }
       return(rendered)
     },
     error = function(e) {
+      # Provide more detailed error information for debugging
+      cli_alert_danger("Template rendering failed!")
+      cli_text("Template: {.code {substr(template, 1, 100)}}...")
+      cli_text("Available parameters:")
+      for (param_name in names(final_params)) {
+        param_val <- final_params[[param_name]]
+        if (is.character(param_val) && nchar(param_val) > 30) {
+          param_val <- paste0(substr(param_val, 1, 27), "...")
+        }
+        cli_text("  {param_name}: {.val {param_val}}")
+      }
       cli_abort("Failed to render template: {e$message}")
     }
   )
 }
 
-#' Prepare Parameters with Defaults
+#' Prepare Parameters for Template Rendering
 #'
-#' Internal function to merge user parameters with default values from
-#' tool configuration.
+#' Merges user parameters with defaults and handles special parameter types.
 #'
 #' @param params List. User-provided parameters.
 #' @param inputs List. Input definitions with defaults.
+#' @param outputs List. Output definitions.
+#' @param command_config List. Command configuration.
 #'
-#' @return List. Merged parameters.
+#' @return List. Final parameters for template rendering.
 #' @keywords internal
-.sn_prepare_params <- function(params, inputs) {
+.prepare_template_params <- function(params, inputs, outputs, command_config) {
   final_params <- list()
 
-  # Start with defaults from input definitions
+  # Initialize all inputs with defaults or NULL
   for (input_name in names(inputs)) {
     input_def <- inputs[[input_name]]
     if (!is.null(input_def$default)) {
       final_params[[input_name]] <- input_def$default
+    } else {
+      # For inputs without defaults, initialize to NULL using proper syntax to preserve the element
+      # Using list(NULL) ensures the element exists in the list with NULL value
+      final_params[input_name] <- list(NULL)
+    }
+  }
+
+  # Add defaults from params definitions if present
+  if (!is.null(command_config$params)) {
+    for (param_name in names(command_config$params)) {
+      param_def <- command_config$params[[param_name]]
+      if (!is.null(param_def$default)) {
+        final_params[[param_name]] <- param_def$default
+      }
+    }
+  }
+
+  # Add empty values for all outputs to ensure they exist in template context
+  for (output_name in names(outputs)) {
+    if (!output_name %in% names(final_params)) {
+      final_params[[output_name]] <- ""
     }
   }
 
   # Override with user-provided parameters
   for (param_name in names(params)) {
-    final_params[[param_name]] <- params[[param_name]]
-  }
-
-  # Add common parameters that might not be in inputs but used in templates
-  common_params <- list(
-    extra = ""
-  )
-
-  for (common_name in names(common_params)) {
-    if (!common_name %in% names(final_params)) {
-      final_params[[common_name]] <- common_params[[common_name]]
+    value <- params[[param_name]]
+    # Convert empty strings to NULL for optional inputs to make jinjar conditions work correctly
+    if (param_name %in% names(inputs)) {
+      input_def <- inputs[[param_name]]
+      required <- input_def$required %||% TRUE
+      if (!required && is.character(value) && length(value) == 1 && nzchar(value) == FALSE) {
+        # Use proper syntax to preserve NULL values in list
+        final_params[param_name] <- list(NULL)
+      } else {
+        final_params[[param_name]] <- value
+      }
+    } else {
+      final_params[[param_name]] <- value
     }
   }
 
   return(final_params)
 }
 
-#' Validate Required Parameters
+#' Handle Special Parameter Types
 #'
-#' Internal function to check that all required parameters are provided.
+#' Processes parameters based on their data types and converts them
+#' appropriately for template rendering.
+#'
+#' @param params List. Parameters to process.
+#' @param inputs List. Input definitions.
+#' @param command_config List. Command configuration.
+#'
+#' @return List. Processed parameters.
+#' @keywords internal
+.handle_special_param_types <- function(params, inputs, command_config) {
+  # Process input types - check all defined inputs, not just those in params
+  for (input_name in names(inputs)) {
+    if (input_name %in% names(params)) {
+      input_def <- inputs[[input_name]]
+      datatype <- input_def$datatype
+
+      # Handle different datatypes
+      if (!is.null(datatype)) {
+        converted_value <- .convert_param_by_datatype(params[[input_name]], datatype)
+        # Use proper syntax to preserve NULL values in list
+        if (is.null(converted_value)) {
+          params[input_name] <- list(NULL)
+        } else {
+          params[[input_name]] <- converted_value
+        }
+      }
+    }
+    # Important: Keep NULL values in params even if they're not processed
+    # This ensures all inputs are available in the template context
+  }
+
+  # Process parameter types if defined
+  if (!is.null(command_config$params)) {
+    for (param_name in names(command_config$params)) {
+      if (param_name %in% names(params)) {
+        param_def <- command_config$params[[param_name]]
+        datatype <- param_def$datatype
+
+        if (!is.null(datatype)) {
+          converted_value <- .convert_param_by_datatype(params[[param_name]], datatype)
+          # Use proper syntax to preserve NULL values in list
+          if (is.null(converted_value)) {
+            params[param_name] <- list(NULL)
+          } else {
+            params[[param_name]] <- converted_value
+          }
+        }
+      }
+    }
+  }
+
+  return(params)
+}
+
+#' Convert Parameter by Data Type
+#'
+#' Converts a parameter value based on its specified data type.
+#'
+#' @param value The parameter value to convert.
+#' @param datatype Character. The target data type.
+#'
+#' @return Converted value.
+#' @keywords internal
+.convert_param_by_datatype <- function(value, datatype) {
+  # Handle NULL or empty datatype
+  if (is.null(datatype) || length(datatype) == 0) {
+    return(value)
+  }
+
+  # Ensure datatype is a single character value
+  if (length(datatype) > 1) {
+    datatype <- datatype[1]
+  }
+
+  # Check for empty string
+  if (datatype == "") {
+    return(value)
+  }
+
+  switch(datatype,
+    "integer" = as.integer(value),
+    "numeric" = as.numeric(value),
+    "logical" = as.logical(value),
+    "string" = as.character(value),
+    "flag" = if (as.logical(value)) value else "",
+    value # Default: return as-is
+  )
+}
+
+#' Validate Template Parameters
+#'
+#' Validates that all required parameters are provided and have valid values.
 #'
 #' @param params List. Final parameters after merging defaults.
 #' @param inputs List. Input definitions.
-#'
-#' @return NULL (throws error if validation fails)
-#' @keywords internal
-.sn_validate_params <- function(params, inputs) {
-  required_inputs <- names(inputs)[sapply(inputs, function(x) x$required %||% FALSE)]
-
-  missing_required <- setdiff(required_inputs, names(params))
-  if (length(missing_required) > 0) {
-    cli_abort("Missing required parameters: {paste(missing_required, collapse = ', ')}")
-  }
-
-  # Check for empty required parameters
-  for (req_input in required_inputs) {
-    value <- params[[req_input]]
-    if (is.null(value) || (is.character(value) && value == "") || is.na(value)) {
-      cli_abort("Required parameter '{req_input}' cannot be empty or NULL")
-    }
-  }
-}
-
-#' Process Conditional Blocks in Templates
-#'
-#' Internal function to handle simplified jinja2-like conditional syntax
-#' in templates (e.g., if reads2 then include content endif).
-#'
-#' @param template Character. Template string possibly containing conditionals.
-#' @param params List. Parameters for evaluation.
-#'
-#' @return Character. Template with conditionals processed.
-#' @keywords internal
-.sn_process_conditionals <- function(template, params) {
-  # Handle {% if var %}...{% endif %} blocks (positive conditions)
-  pattern_positive <- "\\{%\\s*if\\s+(\\w+)\\s*%\\}(.*?)\\{%\\s*endif\\s*%\\}"
-
-  # Handle {% if not var %}...{% endif %} blocks (negative conditions)
-  pattern_negative <- "\\{%\\s*if\\s+not\\s+(\\w+)\\s*%\\}(.*?)\\{%\\s*endif\\s*%\\}"
-
-  # Process negative conditions first (more specific pattern)
-  while (grepl(pattern_negative, template)) {
-    matches <- regmatches(template, gregexpr(pattern_negative, template, perl = TRUE))[[1]]
-
-    for (match in matches) {
-      # Extract variable name and content
-      var_match <- regmatches(match, regexec("\\{%\\s*if\\s+not\\s+(\\w+)\\s*%\\}", match))[[1]]
-      var_name <- var_match[2]
-
-      content_match <- regmatches(match, regexec("\\{%\\s*if\\s+not\\s+\\w+\\s*%\\}(.*?)\\{%\\s*endif\\s*%\\}", match))[[1]]
-      content <- content_match[2]
-
-      # Evaluate negative condition
-      condition_met <- TRUE # Default to true for negative condition
-      if (var_name %in% names(params)) {
-        value <- params[[var_name]]
-        # Condition is met if value is null, empty, false, or NA
-        condition_met <- is.null(value) ||
-          is.na(value) ||
-          value == "" ||
-          (is.logical(value) && !value)
-      }
-
-      # Replace with content or empty string
-      replacement <- if (condition_met) content else ""
-      template <- gsub(match, replacement, template, fixed = TRUE)
-    }
-  }
-
-  # Process positive conditions
-  while (grepl(pattern_positive, template)) {
-    matches <- regmatches(template, gregexpr(pattern_positive, template, perl = TRUE))[[1]]
-
-    for (match in matches) {
-      # Extract variable name and content
-      var_match <- regmatches(match, regexec("\\{%\\s*if\\s+(\\w+)\\s*%\\}", match))[[1]]
-      var_name <- var_match[2]
-
-      content_match <- regmatches(match, regexec("\\{%\\s*if\\s+\\w+\\s*%\\}(.*?)\\{%\\s*endif\\s*%\\}", match))[[1]]
-      content <- content_match[2]
-
-      # Evaluate positive condition
-      condition_met <- FALSE
-      if (var_name %in% names(params)) {
-        value <- params[[var_name]]
-        condition_met <- !is.null(value) &&
-          !is.na(value) &&
-          value != "" &&
-          (is.logical(value) && value || !is.logical(value))
-      }
-
-      # Replace with content or empty string
-      replacement <- if (condition_met) content else ""
-      template <- gsub(match, replacement, template, fixed = TRUE)
-    }
-  }
-
-  return(template)
-}
-
-#' Get Template Variables
-#'
-#' Extract variable names used in a template string.
-#'
-#' @param template Character. Template string.
-#'
-#' @return Character vector. Variable names found in template.
-#' @export
-sn_get_template_vars <- function(template) {
-  # Find {variable} patterns
-  glue_vars <- regmatches(template, gregexpr("\\{(\\w+)\\}", template))[[1]]
-  glue_vars <- gsub("[{}]", "", glue_vars)
-
-  # Find variables in positive conditional blocks
-  pos_cond_vars <- regmatches(template, gregexpr("\\{%\\s*if\\s+(\\w+)\\s*%\\}", template))[[1]]
-  pos_cond_vars <- gsub(".*if\\s+(\\w+).*", "\\1", pos_cond_vars)
-
-  # Find variables in negative conditional blocks
-  neg_cond_vars <- regmatches(template, gregexpr("\\{%\\s*if\\s+not\\s+(\\w+)\\s*%\\}", template))[[1]]
-  neg_cond_vars <- gsub(".*if\\s+not\\s+(\\w+).*", "\\1", neg_cond_vars)
-
-  unique(c(glue_vars, pos_cond_vars, neg_cond_vars))
-}
-
-#' Validate Required Output Parameters
-#'
-#' Internal function to check that required output parameters are provided.
-#'
-#' @param final_params List. All final parameters.
 #' @param outputs List. Output definitions.
-#' @param user_params List. User-provided parameters.
 #'
 #' @return NULL (throws error if validation fails)
 #' @keywords internal
-.sn_validate_outputs <- function(final_params, outputs, user_params) {
-  # Find required outputs (those that are required=TRUE or used in template)
-  required_outputs <- names(outputs)[sapply(outputs, function(x) x$required %||% FALSE)]
+.validate_template_params <- function(params, inputs, outputs) {
+  # Check required inputs
+  for (input_name in names(inputs)) {
+    input_def <- inputs[[input_name]]
+    is_required <- input_def$required %||% FALSE
 
-  # Also check for outputs that are referenced in template but not provided
-  # This is handled by template variable validation, but we check here for better error messages
-  for (output_name in names(outputs)) {
-    if (output_name %in% names(user_params)) {
-      value <- user_params[[output_name]]
+    if (is_required) {
+      if (!input_name %in% names(params)) {
+        cli_abort("Missing required input: {input_name}")
+      }
+
+      value <- params[[input_name]]
       if (is.null(value) || (is.character(value) && value == "") || is.na(value)) {
-        cli_abort("Output parameter '{output_name}' cannot be empty or NULL")
+        cli_abort("Required input '{input_name}' cannot be empty or NULL")
       }
     }
   }
+
+  # Check required outputs
+  for (output_name in names(outputs)) {
+    output_def <- outputs[[output_name]]
+    is_required <- output_def$required %||% FALSE
+
+    if (is_required) {
+      if (!output_name %in% names(params)) {
+        cli_abort("Missing required output: {output_name}")
+      }
+
+      value <- params[[output_name]]
+      if (is.null(value) || (is.character(value) && value == "") || is.na(value)) {
+        cli_abort("Required output '{output_name}' cannot be empty or NULL")
+      }
+    }
+  }
+}
+
+#' Render Python Template
+#'
+#' Special handling for Python-based tools that use Python code templates
+#' instead of shell commands.
+#'
+#' @param python_template Character. Python code template.
+#' @param params List. Parameters for template rendering.
+#' @param inputs List. Input definitions.
+#' @param outputs List. Output definitions.
+#' @param command_config List. Command configuration.
+#' @param show_messages Logical. Whether to show template rendering messages.
+#'
+#' @return Character. Rendered Python code.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' python_code <- 'import scanpy as sc\nadata = sc.read_h5ad("{{ input_h5ad }}")'
+#' params <- list(input_h5ad = "data.h5ad")
+#' rendered <- sn_render_python_template(python_code, params, inputs, outputs, cmd_config)
+#' }
+sn_render_python_template <- function(python_template, params, inputs = list(), outputs = list(), command_config = list(), show_messages = TRUE) {
+  # Prepare parameters with prefixes for inputs/outputs
+  final_params <- .prepare_python_template_params(params, inputs, outputs, command_config)
+
+  # Validate required parameters
+  .validate_template_params(final_params, inputs, outputs)
+
+  # Render using jinjar
+  tryCatch(
+    {
+      rendered <- do.call(render, c(list(python_template), final_params))
+
+      if (show_messages) {
+        cli_alert_success("Python template rendered successfully")
+      }
+      return(rendered)
+    },
+    error = function(e) {
+      cli_abort("Failed to render Python template: {e$message}")
+    }
+  )
+}
+
+#' Prepare Parameters for Python Template
+#'
+#' Prepares parameters for Python templates, adding input_/output_ prefixes
+#' as commonly used in Python tool templates.
+#'
+#' @param params List. User parameters.
+#' @param inputs List. Input definitions.
+#' @param outputs List. Output definitions.
+#' @param command_config List. Command configuration.
+#'
+#' @return List. Prepared parameters with prefixes.
+#' @keywords internal
+.prepare_python_template_params <- function(params, inputs, outputs, command_config) {
+  final_params <- .prepare_template_params(params, inputs, outputs, command_config)
+
+  # Add input_ prefixed versions for convenience in Python templates
+  for (input_name in names(inputs)) {
+    if (input_name %in% names(final_params)) {
+      final_params[[paste0("input_", input_name)]] <- final_params[[input_name]]
+    }
+  }
+
+  # Add output_ prefixed versions for convenience in Python templates
+  for (output_name in names(outputs)) {
+    if (output_name %in% names(final_params)) {
+      final_params[[paste0("output_", output_name)]] <- final_params[[output_name]]
+    }
+  }
+
+  return(final_params)
+}
+
+#' Test Template Rendering
+#'
+#' Helper function to test template rendering with example parameters.
+#' Useful for debugging and development.
+#'
+#' @param template Character. Template to test.
+#' @param test_params List. Test parameters.
+#'
+#' @return Character. Rendered result or error message.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' template <- "samtools view -@ {{ threads }} {{ input }}"
+#' test_params <- list(threads = 4, input = "test.bam")
+#' result <- sn_test_template(template, test_params)
+#' }
+sn_test_template <- function(template, test_params) {
+  tryCatch(
+    {
+      rendered <- do.call(render, c(list(template), test_params))
+      cli_alert_success("Template test successful")
+      return(rendered)
+    },
+    error = function(e) {
+      cli_alert_danger("Template test failed: {e$message}")
+      return(paste("ERROR:", e$message))
+    }
+  )
 }

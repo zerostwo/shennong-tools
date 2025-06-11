@@ -1,15 +1,18 @@
 Package: ShennongTools
 Type: Package
-Title: Unified API for Bioinformatics Tools via YAML Configuration
+Title: Unified Interface for Bioinformatics Tool Management and Execution
 Version: 0.1.0
 Authors@R: c(
     person("Songqi", "Duan", , "duan@songqi.org", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-0822-5883"))
   )
-Description: Provides a unified API for executing bioinformatics tools
-    through YAML configuration files. Supports tool registration, parameter
-    validation, template rendering, and command execution with conda/mamba
-    environment management.
+Description: 
+    ShennongTools provides a unified, extensible interface for managing and executing
+    bioinformatics tools using YAML-based configurations. It enables reproducible,
+    command-line driven analysis through an R API (`sn_run()`) that supports argument
+    templating, resource monitoring, conda-based environment management, and structured
+    output handling. Tools are modeled as S4 objects and organized into toolboxes,
+    making the system scalable, composable, and suitable for high-throughput workflows.
 License: MIT + file LICENSE
 URL: https://github.com/zerostwo/shennong-tools
 BugReports: https://github.com/zerostwo/shennong-tools/issues
@@ -27,17 +30,20 @@ Imports:
     methods,
     rlang,
     processx,
-    ps
+    ps,
+    jinjar
 Suggests:
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    withr
 Config/testthat/edition: 3
 Collate: 
     'AllClasses.R'
+    'environment.R'
     'generics.R'
     'help.R'
     'registry.R'
     'run.R'
-    'template-engine.R'
+    'template.R'
     'toolbox.R'
     'utils.R'
     'zzz.R'

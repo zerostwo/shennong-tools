@@ -1,1162 +1,873 @@
 #' Run Tool Command
 #'
-#' This is the main unified API function for executing bioinformatics tools
-#' registered via YAML configurations. It handles parameter validation, template
-#' rendering, and command execution.
+#' Execute a bioinformatics tool command. This function automatically manages
+#' the toolbox and installation of tools.
 #'
-#' @param tool Character. Tool name from registry.
+#' @param tool_name Character. Name of the tool to run.
 #' @param command Character. Command name within the tool.
+#' @param version Character. Version of the tool to use. If NULL, uses first available version.
 #' @param ... Named parameters for the tool command.
 #' @param dry_run Logical. If TRUE, only show the command without executing.
 #' @param work_dir Character. Working directory for execution.
-#' @param env_path Character. Path to conda environment (optional).
-#' @param extra Character. Additional command-line arguments.
-#' @param registry List. Tool registry (optional, will load if not provided).
-#' @param log_level Character or Integer. Logging level: "silent"/"quiet"/0 (no
-#'   output), "minimal"/1 (R messages only), "normal"/2 (R messages + tool
-#'   output). Default can be set via options("sn.log_level").
-#' @param log_dir Character. Directory to save log files. If NULL, uses output
-#'   directory or work_dir. Default can be set via options("sn.log_dir").
+#' @param log_level Character or Integer. Logging level: "silent"/"quiet"/0,
+#'   "minimal"/1, "normal"/2. Default "normal".
+#' @param log_dir Character. Directory to save log files. If NULL, uses work_dir.
 #'
-#' @return List containing execution results (exit_code, stdout, stderr,
-#'   command).
+#' @return ToolCall object containing execution results.
 #' @export
 #'
 #' @examples
 #' \dontrun{
-#' # Set global options
-#' options(sn.log_level = "normal", sn.log_dir = "~/logs")
-#'
-#' # Build HISAT2 index (logs saved to output directory)
-#' sn_run("hisat2", "build",
-#'   fasta = "genome.fa",
-#'   index = "genome_index",
-#'   threads = 8
-#' )
-#'
-#' # Align reads with HISAT2 (logs saved to custom directory)
-#' sn_run("hisat2", "align",
-#'   index = "genome_index",
-#'   reads1 = "sample_R1.fastq.gz",
-#'   reads2 = "sample_R2.fastq.gz",
-#'   bam = "aligned.bam",
-#'   threads = 4,
-#'   log_dir = "~/analysis_logs"
+#' # Run tool command directly
+#' result <- sn_run("samtools", "view",
+#'   input = "test.bam",
+#'   output = "filtered.bam",
+#'   extra = "-q 20"
 #' )
 #'
 #' # Dry run to see command
-#' sn_run("samtools", "index",
-#'   input = "aligned.bam",
-#'   output = "aligned.bam.bai",
+#' result <- sn_run("samtools", "index",
+#'   input = "test.bam",
 #'   dry_run = TRUE
 #' )
-#'
-#' # Silent mode (no output but still saves logs)
-#' sn_run("samtools", "faidx",
-#'   fasta = "genome.fa",
-#'   region = "chr1",
-#'   log_level = 0
-#' ) # or "silent"
-#'
-#' # Use numeric log levels
-#' sn_run("samtools", "index",
-#'   input = "aligned.bam",
-#'   log_level = 2
-#' ) # normal
 #' }
-sn_run <- function(tool, command, ...,
+sn_run <- function(tool_name, command, version = NULL, ...,
                    dry_run = FALSE,
                    work_dir = ".",
-                   env_path = NULL,
-                   extra = NULL,
-                   registry = NULL,
-                   log_level = getOption("sn.log_level", "normal"),
-                   log_dir = getOption("sn.log_dir", NULL)) {
-  # Normalize log_level (support both string and numeric)
-  log_level <- .sn_normalize_log_level(log_level)
+                   log_level = "normal",
+                   log_dir = NULL) {
+  # Get or create default toolbox
+  toolbox <- .get_default_toolbox()
 
-  # Set verbosity based on log_level
-  show_messages <- log_level >= 1 # minimal or normal
-  show_tool_output <- log_level >= 2 # normal
+  # Normalize log level
+  log_level <- .normalize_log_level(log_level)
+  show_messages <- log_level >= 1
+  show_tool_output <- log_level >= 2
 
-  # Load registry if not provided
-  if (is.null(registry)) {
-    registry <- sn_load_registry()
+  # Check if tool is available in toolbox
+  if (!tool_name %in% names(toolbox@tools)) {
+    # Try to add the tool automatically using a robust fallback approach
+    if (show_messages) {
+      cli_alert_info("Tool {tool_name} not found in toolbox, adding it...")
+    }
+
+    # Bypass sn_add_tool and create tool manually if needed
+    tool_added <- FALSE
+
+    # Try sn_add_tool first (only if we want to show messages)
+    if (show_messages) {
+      tool_added <- tryCatch(
+        {
+          toolbox <- sn_add_tool(toolbox, tool_name, version = version, install = TRUE)
+          .set_default_toolbox(toolbox)
+          TRUE
+        },
+        error = function(e) {
+          if (show_messages) {
+            cli_alert_warning("Standard tool addition failed, creating tool manually...")
+          }
+          FALSE
+        }
+      )
+    }
+
+    # If sn_add_tool failed or we're in silent mode, create tool manually
+    if (!tool_added) {
+      tryCatch(
+        {
+          # Load tool configuration manually
+          tool_config <- .load_builtin_tool(tool_name, version)
+
+          # Resolve version if NULL
+          if (is.null(version)) {
+            version <- .resolve_latest_version(tool_config)
+          }
+
+          # Create tool object manually
+          tool <- .create_tool_from_config(tool_config, version, toolbox@base_dir)
+
+          # Add to toolbox manually
+          if (!tool_name %in% names(toolbox@tools)) {
+            toolbox@tools[[tool_name]] <- list()
+          }
+
+          toolbox@tools[[tool_name]][[version]] <- tool
+
+          # Try to install
+          if (show_messages) {
+            cli_alert_info("Installing {tool_name} version {version}...")
+          }
+
+          install_result <- tryCatch(
+            {
+              .install_tool_with_yaml(tool_name, version, tool_config, toolbox@base_dir, show_messages = show_messages)
+            },
+            error = function(install_error) {
+              if (show_messages) {
+                cli_alert_warning("Installation failed: {install_error$message}")
+              }
+              return(NULL)
+            }
+          )
+
+          # Update installation status if successful
+          if (!is.null(install_result)) {
+            toolbox@tools[[tool_name]][[version]]@installed <- TRUE
+            toolbox@tools[[tool_name]][[version]]@install_date <- Sys.time()
+            if (show_messages) {
+              cli_alert_success("Added and installed {tool_name} version {version}")
+            }
+          } else {
+            if (show_messages) {
+              cli_alert_warning("Tool added but installation failed - will try again later")
+            }
+          }
+
+          # Update the global toolbox
+          .set_default_toolbox(toolbox)
+        },
+        error = function(e2) {
+          cli_abort("Failed to add tool {tool_name}: {e2$message}")
+        }
+      )
+    }
   }
 
-  # Get tool configuration
-  tool_config <- sn_get_tool_config(tool, registry)
+  # Get tool from toolbox
+  if (!tool_name %in% names(toolbox@tools)) {
+    cli_abort("Tool {tool_name} not found in toolbox. Available tools: {paste(names(toolbox@tools), collapse = ', ')}")
+  }
 
-  # Ensure tool is available (auto-install if needed)
-  if (!sn_ensure_tool(tool)) {
-    cli_abort("Tool '{tool}' is not available and could not be installed")
+  # Determine version to use
+  available_versions <- names(toolbox@tools[[tool_name]])
+  if (is.null(version)) {
+    version <- available_versions[1] # Use first available version
+    if (show_messages) {
+      cli_alert_info("Using version {version} (specify version parameter to choose different version)")
+    }
+  }
+
+  if (!version %in% available_versions) {
+    cli_abort("Version {version} not found for {tool_name}. Available versions: {paste(available_versions, collapse = ', ')}")
+  }
+
+  tool <- toolbox@tools[[tool_name]][[version]]
+
+  # Check tool is installed
+  if (!tool@installed) {
+    # Try one more time to install the tool if it's not marked as installed
+    if (show_messages) {
+      cli_alert_info("Tool not marked as installed, attempting installation...")
+    }
+
+    install_result <- tryCatch(
+      {
+        # Need to load tool config for YAML installation
+        tool_config <- .load_builtin_tool(tool_name, version)
+        .install_tool_with_yaml(tool_name, version, tool_config, toolbox@base_dir, show_messages = show_messages)
+      },
+      error = function(e) {
+        if (show_messages) {
+          cli_alert_warning("Installation attempt failed: {e$message}")
+        }
+        return(NULL)
+      }
+    )
+
+    if (!is.null(install_result)) {
+      # Update the tool status
+      tool@installed <- TRUE
+      tool@install_date <- Sys.time()
+      toolbox@tools[[tool_name]][[version]] <- tool
+      .set_default_toolbox(toolbox)
+
+      if (show_messages) {
+        cli_alert_success("Tool {tool_name} installed successfully!")
+      }
+    } else {
+      cli_abort("Tool {tool_name} version {version} is not installed and installation failed. Try running sn_install_tool('{tool_name}') manually.")
+    }
   }
 
   # Validate command exists
-  if (!command %in% names(tool_config$commands)) {
-    available_commands <- paste(names(tool_config$commands), collapse = ", ")
-    cli_abort("Command '{command}' not found for tool '{tool}'. Available commands: {available_commands}")
+  if (!command %in% names(tool@commands)) {
+    available_commands <- paste(names(tool@commands), collapse = ", ")
+    cli_abort("Command '{command}' not found for tool '{tool_name}'. Available commands: {available_commands}")
   }
 
-  cmd_config <- tool_config$commands[[command]]
+  cmd_config <- tool@commands[[command]]
 
   # Collect user parameters
   user_params <- list(...)
 
-  # Add extra if provided
-  if (!is.null(extra) && extra != "") {
-    user_params$extra <- extra
-  }
-
-  # Display modern workflow-style information
+  # Display workflow information
   if (show_messages) {
-    .sn_display_workflow_info(tool, command, cmd_config, user_params)
+    .display_workflow_info(tool, command, cmd_config, user_params)
   }
 
-  # Render command template
-  rendered_cmd <- sn_render_template(
-    template = cmd_config$args_template,
-    params = user_params,
-    inputs = cmd_config$inputs,
-    cmd_config = cmd_config
-  )
-
-  # Create output directories before execution
-  .sn_create_output_directories(cmd_config, user_params, show_messages)
-
-  # Prepare execution environment
-  if (is.null(env_path)) {
-    # Collect all environments (main tool + dependencies)
-    env_paths <- .sn_collect_tool_environments(tool, tool_config, registry)
+  # Determine template type and render command
+  if (!is.null(cmd_config$shell)) {
+    # Shell command template
+    rendered_cmd <- sn_render_template(
+      template = cmd_config$shell,
+      params = user_params,
+      inputs = cmd_config$inputs %||% list(),
+      outputs = cmd_config$outputs %||% list(),
+      command_config = cmd_config,
+      show_messages = show_messages
+    )
+    execution_type <- "shell"
+  } else if (!is.null(cmd_config$python)) {
+    # Python code template
+    rendered_cmd <- sn_render_python_template(
+      python_template = cmd_config$python,
+      params = user_params,
+      inputs = cmd_config$inputs %||% list(),
+      outputs = cmd_config$outputs %||% list(),
+      command_config = cmd_config,
+      show_messages = show_messages
+    )
+    execution_type <- "python"
   } else {
-    # User provided specific environment path
-    env_paths <- list(env_path)
+    cli_abort("Command {command} has no shell or python template defined")
   }
 
+  # Create output directories
+  .create_output_directories(cmd_config, user_params, show_messages)
+
+  # Show execution information - only at log_level >= 1
   if (show_messages || dry_run) {
-    # Show the environment information on separate line if available
-    if (length(env_paths) > 0) {
-      valid_paths <- Filter(function(x) !is.null(x) && dir.exists(x), env_paths)
-      if (length(valid_paths) > 0) {
-        if (length(valid_paths) == 1) {
-          cli_bullets(c("i" = "Environment: {.path {valid_paths[[1]]}}"))
-        } else {
-          cli_bullets(c("i" = "Environments:"))
-          for (i in seq_along(valid_paths)) {
-            cli_bullets(c(" " = "  {i}. {.path {valid_paths[[i]]}}"))
-          }
-        }
-      }
+    env_path <- .get_tool_install_path(toolbox, tool_name, version)
+    cli_bullets(c("i" = "Environment: {.path {env_path}}"))
+    if (execution_type == "shell") {
+      cli_bullets(c("i" = "Command:"))
+      cli_bullets(c(" " = "{.code {rendered_cmd}}"))
+    } else {
+      cli_bullets(c("i" = "Python code:"))
+      cli_bullets(c(" " = "{.code {substring(rendered_cmd, 1, 100)}}..."))
     }
-    # Show the command on its own line for better readability
-    cli_bullets(c("i" = "Command:"))
-    cli_bullets(c(" " = "{.code {rendered_cmd}}"))
   }
 
-  # Prepare log file (always save logs)
+  # Prepare log file
   timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
-  log_file <- sprintf("%s_%s_%s.log", timestamp, tool, command)
+  log_file_name <- sprintf("%s_%s_%s_%s.log", timestamp, tool_name, version, command)
 
-  # Determine log directory
-  final_log_dir <- .sn_determine_log_dir(
-    log_dir, user_params, cmd_config, work_dir
-  )
-  log_file <- file.path(final_log_dir, log_file)
-
-  # Show logging message if displaying messages
-  if (show_messages) {
-    cli_bullets(c("i" = "Logging to: {.file {log_file}}"))
+  # Determine log directory with smart logic
+  final_log_dir <- .determine_log_directory(log_dir, work_dir, user_params, cmd_config$outputs %||% list())
+  if (!dir.exists(final_log_dir)) {
+    dir.create(final_log_dir, recursive = TRUE)
   }
+  log_file <- file.path(final_log_dir, log_file_name)
+
+  # Log file path will be shown after execution
+
+  # Create ToolCall object
+  tool_call <- new("ToolCall",
+    tool = tool,
+    command = command,
+    rendered_command = rendered_cmd,
+    inputs = .extract_inputs_from_params(user_params, cmd_config$inputs %||% list()),
+    outputs = .extract_outputs_from_params(user_params, cmd_config$outputs %||% list()),
+    params = user_params,
+    work_dir = work_dir,
+    log_file = log_file,
+    status = "pending",
+    resources = list(
+      runtime_seconds = NA,
+      memory_mb = NA,
+      cpu_percent = NA
+    )
+  )
 
   # Execute or dry run
   if (dry_run) {
     if (show_messages) {
       cli_bullets(c("!" = "Dry run mode - command not executed"))
     }
-
-    # Create S3 object for dry run result
-    result <- .sn_create_result_object(
-      tool = tool,
-      command = command,
-      cmd_config = cmd_config,
-      user_params = user_params,
-      rendered_cmd = rendered_cmd,
-      dry_run = TRUE,
-      exit_code = NULL,
-      stdout = NULL,
-      stderr = NULL,
-      log_file = log_file,
-      env_paths = env_paths,
-      resources = NULL
-    )
-
-    return(invisible(result))
+    tool_call@status <- "pending"
+    return(tool_call)
   }
 
-  # Execute command with resource monitoring
+  # Execute command
   if (show_messages) {
     cli_bullets(c(">" = "Executing..."))
   }
 
-  # Execute command with resource monitoring
+  tool_call@status <- "running"
+
+  # Record start time
   start_time <- Sys.time()
-  result <- .sn_execute_command_with_monitoring(rendered_cmd, work_dir, show_tool_output, log_file, start_time, env_paths)
-  end_time <- Sys.time()
 
-  # Create resources info
-  resources <- list(
-    duration = as.numeric(difftime(end_time, start_time, units = "secs")),
-    peak_cpu = result$peak_cpu,
-    peak_memory = result$peak_memory
-  )
-
-  # Update log file with resource information
-  if (!is.null(log_file)) {
-    .sn_append_resource_info(log_file, end_time, resources)
+  if (execution_type == "shell") {
+    env_path <- .get_tool_install_path(toolbox, tool_name, version)
+    result <- .execute_shell_command(rendered_cmd, env_path, work_dir, log_file, show_tool_output)
+  } else {
+    env_path <- .get_tool_install_path(toolbox, tool_name, version)
+    result <- .execute_python_command(rendered_cmd, env_path, work_dir, log_file, show_tool_output)
   }
 
-  # Report results
+  # Update tool call with results
+  tool_call@return_code <- result$exit_code
+  tool_call@stdout <- result$stdout
+  tool_call@stderr <- result$stderr
+  tool_call@status <- if (result$exit_code == 0) "success" else "failed"
+
+  # Add resource information
+  tool_call@resources <- list(
+    runtime_seconds = result$runtime_seconds %||% NA,
+    start_time = start_time,
+    end_time = start_time + (result$runtime_seconds %||% 0),
+    memory_mb = result$memory_mb %||% NA,
+    cpu_percent = result$cpu_percent %||% NA
+  )
+
+  # Show completion message
   if (show_messages) {
     if (result$exit_code == 0) {
-      duration_str <- .sn_format_duration(resources$duration)
-      cli_bullets(c("v" = "Completed successfully in {.emph {duration_str}}"))
-      if (!is.null(resources$peak_memory)) {
-        memory_str <- .sn_format_memory(resources$peak_memory)
-        cli_bullets(c("i" = "Peak memory: {.emph {memory_str}}"))
-      }
-      if (!is.null(resources$peak_cpu)) {
-        cli_bullets(
-          c(
-            "i" = "Peak CPU: {.emph {sprintf('%.1f%%', resources$peak_cpu)}}"
-          )
-        )
-      }
+      cli_alert_success("Command completed successfully")
     } else {
-      cli_bullets(c("x" = "Failed with exit code: {.emph {result$exit_code}}"))
-      if (!show_tool_output && nzchar(result$stderr)) {
-        cli_bullets(c("!" = "Error: {.emph {result$stderr}}"))
-      }
+      cli_alert_danger("Command failed with exit code {result$exit_code}")
     }
+    cli_bullets(c("i" = "Log saved to: {.file {log_file}}"))
   }
 
-  # Create S3 object for execution result
-  result_obj <- .sn_create_result_object(
-    tool = tool,
-    command = command,
-    cmd_config = cmd_config,
-    user_params = user_params,
-    rendered_cmd = rendered_cmd,
-    dry_run = FALSE,
-    exit_code = result$exit_code,
-    stdout = result$stdout,
-    stderr = result$stderr,
-    log_file = log_file,
-    env_paths = env_paths,
-    resources = resources
-  )
-
-  invisible(result_obj)
+  return(tool_call)
 }
 
-#' Display Workflow Information
-#'
-#' Internal function to display modern workflow-style information about
-#' inputs/outputs/parameters.
-#'
-#' @param tool Character. Tool name.
-#' @param command Character. Command name.
-#' @param cmd_config List. Command configuration.
-#' @param user_params List. User provided parameters.
-#'
-#' @keywords internal
-.sn_display_workflow_info <- function(tool, command, cmd_config, user_params) {
-  cli_rule(left = paste0("\U1F527 ", tool, "::", command))
-
-  # Display inputs (required parameters from inputs section)
-  required_inputs <- .sn_extract_required_inputs(cmd_config$inputs, user_params)
-  if (length(required_inputs) > 0) {
-    cli_bullets(c(" " = "{.strong Inputs:}"))
-    for (name in names(required_inputs)) {
-      value <- required_inputs[[name]]
-      param_def <- cmd_config$inputs[[name]]
-      if (!is.null(param_def$type) && param_def$type == "file") {
-        # Display file with size info
-        if (file.exists(value)) {
-          size <- .sn_format_file_size(file.size(value))
-          cli_bullets(c("*" = "{.field {name}}: {.file {basename(value)}} ({.emph {size}}) - {.path {dirname(value)}}"))
-        } else {
-          cli_bullets(c("!" = "{.field {name}}: {.file {basename(value)}} {.emph (not found)} - {.path {dirname(value)}}"))
-        }
-      } else {
-        cli_bullets(c("*" = "{.field {name}}: {.val {value}}"))
-      }
-    }
-    cli_text() # Add spacing
-  }
-
-  # Display outputs
-  if (!is.null(cmd_config$outputs) && length(cmd_config$outputs) > 0) {
-    output_files <- .sn_extract_user_params(cmd_config$outputs, user_params)
-    if (length(output_files) > 0) {
-      cli_bullets(c(" " = "{.strong Outputs:}"))
-      for (name in names(output_files)) {
-        value <- output_files[[name]]
-        cli_bullets(c("*" = "{.field {name}}: {.file {basename(value)}} - {.path {dirname(value)}}"))
-      }
-      cli_text() # Add spacing
-    }
-  }
-
-  # Display parameters (optional inputs + other parameters)
-  params <- .sn_extract_parameters(cmd_config, user_params)
-  if (length(params) > 0) {
-    cli_bullets(c(" " = "{.strong Parameters:}"))
-    for (name in names(params)) {
-      value <- params[[name]]
-      cli_bullets(c("*" = "{.field {name}}: {.val {value}}"))
-    }
-  }
-
-  cli_rule()
-}
-
-#' Extract User Parameters from Config Section
-#'
-#' @param config_section List. Input or output definitions.
-#' @param user_params List. User parameters.
-#'
-#' @return List of parameters that match the config section.
-#' @keywords internal
-.sn_extract_user_params <- function(config_section, user_params) {
-  result <- list()
-  if (!is.null(config_section)) {
-    for (param_name in names(config_section)) {
-      if (param_name %in% names(user_params)) {
-        result[[param_name]] <- user_params[[param_name]]
-      }
-    }
-  }
-  return(result)
-}
-
-#' Extract Required Inputs
-#'
-#' @param inputs List. Input definitions.
-#' @param user_params List. User parameters.
-#'
-#' @return List of required input parameters.
-#' @keywords internal
-.sn_extract_required_inputs <- function(inputs, user_params) {
-  result <- list()
-  if (!is.null(inputs)) {
-    for (param_name in names(inputs)) {
-      param_def <- inputs[[param_name]]
-      # Check if parameter is required and user provided it
-      if ((param_def$required %||% FALSE) && param_name %in% names(user_params)) {
-        result[[param_name]] <- user_params[[param_name]]
-      }
-    }
-  }
-  return(result)
-}
-
-#' Extract Parameters (optional inputs + others)
-#'
-#' @param cmd_config List. Command configuration.
-#' @param user_params List. User parameters.
-#'
-#' @return List of parameter values.
-#' @keywords internal
-.sn_extract_parameters <- function(cmd_config, user_params) {
-  result <- list()
-
-  # Get optional inputs (non-required inputs)
-  if (!is.null(cmd_config$inputs)) {
-    for (param_name in names(cmd_config$inputs)) {
-      param_def <- cmd_config$inputs[[param_name]]
-      # Include if not required and user provided it
-      if (!(param_def$required %||% FALSE) && param_name %in% names(user_params)) {
-        result[[param_name]] <- user_params[[param_name]]
-      }
-    }
-  }
-
-  # Get other parameters not in inputs or outputs
-  input_names <- if (!is.null(cmd_config$inputs)) names(cmd_config$inputs) else character(0)
-  output_names <- if (!is.null(cmd_config$outputs)) names(cmd_config$outputs) else character(0)
-  exclude_names <- c(input_names, output_names, "extra")
-
-  for (param_name in names(user_params)) {
-    if (!param_name %in% exclude_names) {
-      result[[param_name]] <- user_params[[param_name]]
-    }
-  }
-
-  return(result)
-}
-
-#' Find Tool Environment Path
-#'
-#' Internal function to locate the conda environment for an installed tool.
-#'
-#' @param tool Character. Tool name.
-#' @param tool_config List. Tool configuration.
-#'
-#' @return Character. Path to environment or NULL if not found.
-#' @keywords internal
-.sn_find_tool_env <- function(tool, tool_config) {
-  # Default base directory for tool installations
-  base_dir <- tools::R_user_dir(package = "shennong-tools", which = "data")
-
-  # Check if tool directory exists
-  tool_dir <- file.path(base_dir, tool)
-  if (!dir.exists(tool_dir)) {
-    cli_warn("Tool '{tool}' not found in {base_dir}. Use sn_install_tool() first or provide env_path.")
-    return(NULL)
-  }
-
-  # Look for version subdirectories
-  versions <- list.dirs(tool_dir, full.names = FALSE, recursive = FALSE)
-  if (length(versions) == 0) {
-    return(NULL)
-  }
-
-  # Use the most recent version
-  latest_version <- versions[order(versions, decreasing = TRUE)][1]
-  env_path <- file.path(tool_dir, latest_version)
-
-  # Verify environment is valid
-  binary_name <- tool_config$commands[[1]]$binary %||% tool_config$package$name
-  binary_path <- file.path(env_path, "bin", binary_name)
-
-  if (!file.exists(binary_path)) {
-    cli_warn("Binary '{binary_name}' not found in environment {env_path}")
-    return(NULL)
-  }
-
-  return(env_path)
-}
-
-#' Collect Tool Environments
-#'
-#' Internal function to collect environment paths for a tool and all its
-#' dependencies. This ensures that when running a tool that depends on other
-#' tools (e.g., hisat2 + samtools), all necessary environments are available in
-#' PATH.
-#'
-#' @param tool Character. Tool name.
-#' @param tool_config List. Tool configuration.
-#' @param registry List. Tool registry.
-#'
-#' @return List. Environment paths for tool and its dependencies.
-#' @keywords internal
-.sn_collect_tool_environments <- function(tool, tool_config, registry) {
-  env_paths <- list()
-
-  # Get environment for the main tool
-  main_env <- .sn_find_tool_env(tool, tool_config)
-  if (!is.null(main_env)) {
-    env_paths <- append(env_paths, main_env)
-  }
-
-  # Process dependencies from requires field
-  if (!is.null(tool_config$package$requires)) {
-    for (dep in tool_config$package$requires) {
-      dep_name <- dep$name
-
-      # Get dependency tool config from registry
-      if (dep_name %in% names(registry)) {
-        dep_config <- registry[[dep_name]]
-        dep_env <- .sn_find_tool_env(dep_name, dep_config)
-
-        if (!is.null(dep_env)) {
-          env_paths <- append(env_paths, dep_env)
-        } else {
-          cli_warn("Dependency '{dep_name}' environment not found. Tool '{tool}' may not work correctly.")
-        }
-      } else {
-        cli_warn("Dependency '{dep_name}' not found in registry. Tool '{tool}' may not work correctly.")
-      }
-    }
-  }
-
-  # Remove duplicates while preserving order (main tool first)
-  env_paths <- env_paths[!duplicated(env_paths)]
-
-  return(env_paths)
-}
-
-#' Execute Command with Resource Monitoring
-#'
-#' Internal function to execute a shell command with CPU and memory monitoring
-#' using the ps package.
-#'
-#' @param command Character. Command to execute.
-#' @param work_dir Character. Working directory.
-#' @param show_logs Logical. Whether to show stdout/stderr in real time.
-#' @param log_file Character. Full path to log file (optional).
-#' @param start_time POSIXct. Start time for logging.
-#' @param env_paths List. List of environment paths.
-#'
-#' @return List with exit_code, stdout, stderr, peak_cpu, peak_memory.
-#' @keywords internal
-.sn_execute_command_with_monitoring <- function(
-    command, work_dir, show_logs = TRUE,
-    log_file = NULL, start_time = NULL, env_paths = NULL) {
-  # Change to working directory if specified
-  old_wd <- getwd()
-  if (work_dir != ".") {
-    if (!dir.exists(work_dir)) {
-      dir.create(work_dir, recursive = TRUE)
-    }
-    setwd(work_dir)
-  }
-
-  on.exit({
-    setwd(old_wd)
-  })
-
-  # Prepare log file if specified
-  if (!is.null(log_file)) {
-    # Ensure log directory exists
-    log_dir <- dirname(log_file)
-    if (!dir.exists(log_dir)) {
-      dir.create(log_dir, recursive = TRUE)
-    }
-
-    log_start_time <- if (is.null(start_time)) Sys.time() else start_time
-    writeLines(c(
-      paste("# Command execution log"),
-      paste("# Started at:", log_start_time),
-      paste("# Command:", command),
-      paste("# Working directory:", work_dir),
-      ""
-    ), log_file)
-  }
-
-  # Check if ps package is available for resource monitoring
-  # # if (!requireNamespace("ps", quietly = TRUE)) {
-  # if (TRUE) {
-  #   # Fall back to simple execution without monitoring
-  #   return(.sn_execute_command_simple(command, work_dir, show_logs, log_file, start_time, env_paths))
-  # }
-
-  # Prepare environment variables for conda environment
-  env_vars <- Sys.getenv()
-  if (!is.null(env_paths) && length(env_paths) > 0) {
-    for (env_path in env_paths) {
-      if (dir.exists(env_path)) {
-        # Add conda environment bin to PATH
-        env_bin <- file.path(env_path, "bin")
-        if (dir.exists(env_bin)) {
-          current_path <- env_vars[["PATH"]] %||% ""
-          env_vars[["PATH"]] <- paste(env_bin, current_path, sep = ":")
-        }
-      }
-    }
-  }
-
-  # Execute command with resource monitoring using GNU time
-  tryCatch(
-    {
-      # Create temporary file for time output
-      time_output_file <- tempfile()
-
-      # Use GNU time to monitor resources
-      time_cmd <- sprintf(
-        "/usr/bin/time -f 'TIMESTAT:%%e:%%U:%%S:%%M:%%P' -o %s %s",
-        shQuote(time_output_file), command
-      )
-
-      # Execute command using processx
-      result <- processx::run(
-        command = "sh",
-        args = c("-c", time_cmd),
-        stdout = "|",
-        stderr = "|",
-        env = env_vars,
-        echo_cmd = FALSE,
-        echo = show_logs,
-        error_on_status = FALSE
-      )
-
-      exit_code <- result$status
-      stdout_result <- result$stdout
-      stderr_result <- result$stderr
-
-      # Parse time output for resource information
-      peak_cpu <- NULL
-      peak_memory <- NULL
-
-      if (file.exists(time_output_file)) {
-        tryCatch(
-          {
-            time_output <- readLines(time_output_file, warn = FALSE)
-            for (line in time_output) {
-              if (startsWith(line, "TIMESTAT:")) {
-                parts <- strsplit(line, ":")[[1]]
-                if (length(parts) >= 6) {
-                  # Format: TIMESTAT:elapsed:user:system:maxrss:cpu_percent
-                  user_time <- as.numeric(parts[3])
-                  system_time <- as.numeric(parts[4])
-                  max_rss_kb <- as.numeric(parts[5])
-                  cpu_percent_str <- parts[6]
-
-                  # Convert memory from KB to bytes
-                  if (!is.na(max_rss_kb) && max_rss_kb > 0) {
-                    peak_memory <- max_rss_kb * 1024
-                  }
-
-                  # Parse CPU percentage (remove % sign if present)
-                  if (!is.na(cpu_percent_str) && nzchar(cpu_percent_str)) {
-                    cpu_percent_clean <- gsub("%", "", cpu_percent_str)
-                    cpu_percent_num <- as.numeric(cpu_percent_clean)
-                    if (!is.na(cpu_percent_num) && cpu_percent_num > 0) {
-                      peak_cpu <- cpu_percent_num
-                    }
-                  }
-                }
-              }
-            }
-            unlink(time_output_file)
-          },
-          error = function(e) {
-            # Failed to parse time output, continue without resource info
-          }
-        )
-      }
-
-      # Log output if log file specified
-      if (!is.null(log_file)) {
-        log_lines <- c(
-          paste("# Exit code:", exit_code),
-          ""
-        )
-
-        if (nzchar(stdout_result)) {
-          log_lines <- c(log_lines, strsplit(stdout_result, "\n")[[1]])
-        }
-
-        if (nzchar(stderr_result)) {
-          log_lines <- c(log_lines, "", "# STDERR:", strsplit(stderr_result, "\n")[[1]])
-        }
-
-        cat(paste(log_lines, collapse = "\n"), "\n", file = log_file, append = TRUE)
-      }
-
-      return(list(
-        exit_code = exit_code,
-        stdout = stdout_result,
-        stderr = stderr_result,
-        peak_cpu = peak_cpu,
-        peak_memory = peak_memory
-      ))
-    },
-    error = function(e) {
-      error_msg <- as.character(e)
-
-      # Log error if log file is specified
-      if (!is.null(log_file)) {
-        cat(c(
-          "",
-          paste("# ERROR occurred at:", Sys.time()),
-          paste("# Error message:", error_msg),
-          ""
-        ), sep = "\n", file = log_file, append = TRUE)
-      }
-
-      list(
-        exit_code = 1,
-        stdout = "",
-        stderr = error_msg,
-        peak_cpu = NULL,
-        peak_memory = NULL
-      )
-    }
-  )
-}
-
-#' Execute Command (Simple, No Monitoring)
-#'
-#' Internal function to execute a shell command without resource monitoring.
-#' This is used as a fallback when ps package is not available.
-#'
-#' @param command Character. Command to execute.
-#' @param work_dir Character. Working directory.
-#' @param show_logs Logical. Whether to show stdout/stderr in real time.
-#' @param log_file Character. Full path to log file (optional).
-#' @param start_time POSIXct. Start time for logging.
-#' @param env_paths List. List of environment paths.
-#'
-#' @return List with exit_code, stdout, stderr.
-#' @keywords internal
-.sn_execute_command_simple <- function(
-    command, work_dir, show_logs = TRUE, log_file = NULL,
-    start_time = NULL, env_paths = NULL) {
-  # Change to working directory if specified
-  old_wd <- getwd()
-  if (work_dir != ".") {
-    if (!dir.exists(work_dir)) {
-      dir.create(work_dir, recursive = TRUE)
-    }
-    setwd(work_dir)
-  }
-
-  on.exit({
-    setwd(old_wd)
-  })
-
-  # Prepare log file if specified
-  if (!is.null(log_file)) {
-    # Ensure log directory exists
-    log_dir <- dirname(log_file)
-    if (!dir.exists(log_dir)) {
-      dir.create(log_dir, recursive = TRUE)
-    }
-
-    log_start_time <- if (is.null(start_time)) Sys.time() else start_time
-    writeLines(c(
-      paste("# Command execution log"),
-      paste("# Started at:", log_start_time),
-      paste("# Command:", command),
-      paste("# Working directory:", work_dir),
-      ""
-    ), log_file)
-  }
-
-  # Prepare environment variables for conda environment
-  env_vars <- Sys.getenv()
-  if (!is.null(env_paths) && length(env_paths) > 0) {
-    for (env_path in env_paths) {
-      if (dir.exists(env_path)) {
-        # Add conda environment bin to PATH
-        env_bin <- file.path(env_path, "bin")
-        if (dir.exists(env_bin)) {
-          current_path <- env_vars[["PATH"]] %||% ""
-          env_vars[["PATH"]] <- paste(env_bin, current_path, sep = ":")
-        }
-      }
-    }
-  }
-
-  # Execute command using processx
-  tryCatch(
-    {
-      result <- processx::run(
-        command = "sh",
-        args = c("-c", command),
-        stdout = "|",
-        stderr = "|",
-        env = env_vars,
-        echo_cmd = FALSE,
-        echo = show_logs,
-        error_on_status = FALSE
-      )
-
-      exit_code <- result$status
-
-      # Log output if log file specified
-      if (!is.null(log_file)) {
-        log_lines <- c(
-          paste("# Exit code:", exit_code),
-          "",
-          if (nzchar(result$stdout)) strsplit(result$stdout, "\n")[[1]] else "",
-          if (nzchar(result$stderr)) c("", "# STDERR:", strsplit(result$stderr, "\n")[[1]]) else ""
-        )
-        cat(paste(log_lines, collapse = "\n"), "\n", file = log_file, append = TRUE)
-      }
-
-      return(list(
-        exit_code = exit_code,
-        stdout = result$stdout,
-        stderr = result$stderr,
-        peak_cpu = NULL,
-        peak_memory = NULL
-      ))
-    },
-    error = function(e) {
-      error_msg <- as.character(e)
-
-      # Log error if log file is specified
-      if (!is.null(log_file)) {
-        cat(c(
-          "",
-          paste("# ERROR occurred at:", Sys.time()),
-          paste("# Error message:", error_msg),
-          ""
-        ), sep = "\n", file = log_file, append = TRUE)
-      }
-
-      list(
-        exit_code = 1,
-        stdout = "",
-        stderr = error_msg,
-        peak_cpu = NULL,
-        peak_memory = NULL
-      )
-    }
-  )
-}
-
-#' Append Resource Information to Log
-#'
-#' @param log_file Character. Path to log file.
-#' @param end_time POSIXct. End time.
-#' @param resources List. Resource usage information.
-#'
-#' @keywords internal
-.sn_append_resource_info <- function(log_file, end_time, resources) {
-  tryCatch(
-    {
-      if (file.exists(log_file)) {
-        additional_info <- c(
-          "",
-          paste("# Completed at:", end_time),
-          paste("# Duration:", sprintf("%.2f seconds", resources$duration))
-        )
-
-        if (!is.null(resources$peak_cpu)) {
-          additional_info <- c(
-            additional_info,
-            paste("# Peak CPU:", sprintf("%.1f%%", resources$peak_cpu))
-          )
-        }
-
-        if (!is.null(resources$peak_memory)) {
-          additional_info <- c(
-            additional_info,
-            paste("# Peak Memory:", .sn_format_memory(resources$peak_memory))
-          )
-        }
-
-        cat(paste(additional_info, collapse = "\n"), "\n", file = log_file, append = TRUE)
-      }
-    },
-    error = function(e) {
-      # Silently fail if logging doesn't work
-    }
-  )
-}
-
-#' Normalize Log Level
-#'
-#' @param log_level Character or Integer. Logging level.
-#'
-#' @return Integer. Normalized log level.
-#' @keywords internal
-.sn_normalize_log_level <- function(log_level) {
-  if (is.character(log_level)) {
-    # Map string to numeric: silent/quiet=0, minimal=1, normal=2
-    level_map <- c("silent" = 0, "quiet" = 0, "minimal" = 1, "normal" = 2)
-    if (!log_level %in% names(level_map)) {
-      valid_levels <- names(level_map)
-      cli_abort("Invalid log_level. Must be one of: {paste(valid_levels, collapse = ', ')}")
-    }
-    return(level_map[[log_level]])
-  } else if (is.numeric(log_level)) {
-    if (log_level < 0 || log_level > 2) {
-      cli_abort("Invalid log_level. Must be between 0 and 2 (0=silent, 1=minimal, 2=normal)")
-    }
-    return(as.integer(log_level))
-  } else {
-    cli_abort("Invalid log_level format. Must be character or numeric")
-  }
-}
+# Internal helper functions ---------------------------------------------------
 
 #' Determine Log Directory
-#'
-#' @param log_dir Character. User specified log directory.
-#' @param user_params List. User parameters.
-#' @param cmd_config List. Command configuration.
-#' @param work_dir Character. Working directory.
-#'
-#' @return Character. Final log directory path.
 #' @keywords internal
-.sn_determine_log_dir <- function(log_dir, user_params, cmd_config, work_dir) {
-  # If user specified log_dir, use it
+.determine_log_directory <- function(log_dir, work_dir, user_params, output_defs) {
+  # Priority 1: Explicit log_dir parameter
   if (!is.null(log_dir)) {
-    if (!dir.exists(log_dir)) {
-      dir.create(log_dir, recursive = TRUE)
-    }
     return(log_dir)
   }
 
-  # Try to find output directory from first output file
-  outputs <- cmd_config$outputs %||% list()
-  for (output_name in names(outputs)) {
+  # Priority 2: Global sn_options log_dir setting
+  global_log_dir <- getOption("sn.log_dir", NULL)
+  if (!is.null(global_log_dir)) {
+    return(global_log_dir)
+  }
+
+  # Priority 3: Output base directory (from first output)
+  if (length(output_defs) > 0) {
+    # Find the first output in user_params
+    for (output_name in names(output_defs)) {
+      if (output_name %in% names(user_params)) {
+        output_path <- user_params[[output_name]]
+        if (is.character(output_path) && length(output_path) == 1) {
+          output_dir <- dirname(output_path)
+          if (output_dir != ".") {
+            return(output_dir)
+          }
+        }
+      }
+    }
+  }
+
+  # Priority 4: work_dir (fallback)
+  return(work_dir)
+}
+
+#' Normalize Log Level
+#' @keywords internal
+.normalize_log_level <- function(log_level) {
+  # Validate log_level parameter
+  valid_levels <- c("silent", "quiet", "minimal", "normal", 0, 1, 2)
+
+  if (!log_level %in% valid_levels) {
+    cli_abort("Invalid log_level: {log_level}. Must be one of: 'silent'/'quiet'/0, 'minimal'/1, 'normal'/2")
+  }
+
+  if (is.character(log_level)) {
+    switch(log_level,
+      "silent" = 0,
+      "quiet" = 0,
+      "minimal" = 1,
+      "normal" = 2,
+      1 # This line should never be reached due to validation above
+    )
+  } else {
+    as.integer(log_level)
+  }
+}
+
+#' Display Workflow Information
+#' @keywords internal
+.display_workflow_info <- function(tool, command, cmd_config, user_params) {
+  cli_rule("Running {tool@tool_name}::{command}")
+
+  if (!is.null(cmd_config$description)) {
+    cli_bullets(c("i" = cmd_config$description))
+  }
+
+  # Extract inputs, outputs, and parameters separately
+  inputs <- .extract_inputs_from_params(user_params, cmd_config$inputs %||% list())
+  outputs <- .extract_outputs_from_params(user_params, cmd_config$outputs %||% list())
+
+  # Get parameter definitions for filtering
+  param_defs <- cmd_config$params %||% list()
+  params <- list()
+  for (param_name in names(user_params)) {
+    if (!param_name %in% names(inputs) &&
+      !param_name %in% names(outputs)) {
+      params[[param_name]] <- user_params[[param_name]]
+    }
+  }
+
+  # Display inputs
+  if (length(inputs) > 0) {
+    cli_h3(paste0(symbol$file, " Inputs"))
+    for (input_name in names(inputs)) {
+      input_value <- inputs[[input_name]]
+      if (is.character(input_value) && nchar(input_value) > 50) {
+        input_value <- paste0(substr(input_value, 1, 47), "...")
+      }
+      cli_text("  {col_cyan(input_name)}: {.path {input_value}}")
+    }
+  }
+
+  # Display outputs
+  if (length(outputs) > 0) {
+    cli_h3(paste0(symbol$arrow_right, " Outputs"))
+    for (output_name in names(outputs)) {
+      output_value <- outputs[[output_name]]
+      if (is.character(output_value) && nchar(output_value) > 50) {
+        output_value <- paste0(substr(output_value, 1, 47), "...")
+      }
+      cli_text("  {col_green(output_name)}: {.path {output_value}}")
+    }
+  }
+
+  # Display parameters
+  if (length(params) > 0) {
+    cli_h3(paste0(symbol$gear, " Parameters"))
+    for (param_name in names(params)) {
+      param_value <- params[[param_name]]
+      if (is.character(param_value) && nchar(param_value) > 50) {
+        param_value <- paste0(substr(param_value, 1, 47), "...")
+      }
+      cli_text("  {col_silver(param_name)}: {.val {param_value}}")
+    }
+  }
+}
+
+#' Create Output Directories
+#' @keywords internal
+.create_output_directories <- function(cmd_config, user_params, show_messages) {
+  if (is.null(cmd_config$outputs)) {
+    return()
+  }
+
+  dirs_created <- character(0)
+
+  for (output_name in names(cmd_config$outputs)) {
     if (output_name %in% names(user_params)) {
       output_path <- user_params[[output_name]]
       if (is.character(output_path) && length(output_path) == 1) {
         output_dir <- dirname(output_path)
-        if (output_dir != "." && dir.exists(output_dir)) {
-          return(output_dir)
-        }
-      }
-    }
-  }
-
-  # Fall back to working directory
-  return(work_dir)
-}
-
-#' Create Output Directories
-#'
-#' Internal function to create directories for all output files before execution.
-#'
-#' @param cmd_config List. Command configuration.
-#' @param user_params List. User provided parameters.
-#' @param show_messages Logical. Whether to show creation messages.
-#'
-#' @keywords internal
-.sn_create_output_directories <- function(cmd_config, user_params, show_messages = TRUE) {
-  if (is.null(cmd_config$outputs) || length(cmd_config$outputs) == 0) {
-    return(invisible())
-  }
-
-  created_dirs <- character(0)
-
-  # Check all output parameters
-  for (output_name in names(cmd_config$outputs)) {
-    if (output_name %in% names(user_params)) {
-      output_path <- user_params[[output_name]]
-
-      if (is.character(output_path) && length(output_path) == 1 && nzchar(output_path)) {
-        output_dir <- dirname(output_path)
-
-        # Skip if directory is current directory or already exists
         if (output_dir != "." && !dir.exists(output_dir)) {
-          tryCatch(
-            {
-              dir.create(output_dir, recursive = TRUE)
-              created_dirs <- c(created_dirs, output_dir)
-            },
-            error = function(e) {
-              cli_warn("Failed to create output directory '{output_dir}': {e$message}")
-            }
-          )
+          dir.create(output_dir, recursive = TRUE)
+          dirs_created <- c(dirs_created, output_dir)
         }
       }
     }
   }
 
-  # Show creation message if directories were created
-  if (length(created_dirs) > 0 && show_messages) {
-    unique_dirs <- unique(created_dirs)
-    if (length(unique_dirs) == 1) {
-      cli_bullets(c("v" = "Created output directory: {.path {unique_dirs[1]}}"))
-    } else {
-      cli_bullets(c("v" = "Created output directories: {.path {unique_dirs}}"))
+  if (length(dirs_created) > 0 && show_messages) {
+    cli_bullets(c("v" = "Created output directories: {.path {dirs_created}}"))
+  }
+}
+
+#' Extract Inputs from Parameters
+#' @keywords internal
+.extract_inputs_from_params <- function(params, input_defs) {
+  inputs <- list()
+  for (input_name in names(input_defs)) {
+    if (input_name %in% names(params)) {
+      inputs[[input_name]] <- params[[input_name]]
+    }
+  }
+  inputs
+}
+
+#' Extract Outputs from Parameters
+#' @keywords internal
+.extract_outputs_from_params <- function(params, output_defs) {
+  outputs <- list()
+  for (output_name in names(output_defs)) {
+    if (output_name %in% names(params)) {
+      outputs[[output_name]] <- params[[output_name]]
+    }
+  }
+  outputs
+}
+
+#' Execute Shell Command
+#' @keywords internal
+.execute_shell_command <- function(command, env_path, work_dir, log_file, show_output) {
+  # Prepare environment
+  env_vars <- character(0)
+  if (!is.null(env_path) && dir.exists(env_path)) {
+    # Add conda environment to PATH
+    env_bin <- file.path(env_path, "bin")
+    if (dir.exists(env_bin)) {
+      current_path <- Sys.getenv("PATH")
+      new_path <- paste(env_bin, current_path, sep = .Platform$path.sep)
+
+      # Extract environment name from path for CONDA_DEFAULT_ENV
+      # env_path format: /path/to/base_dir/tool_name/version
+      path_parts <- strsplit(env_path, .Platform$file.sep)[[1]]
+      env_name <- paste(tail(path_parts, 2), collapse = "/") # tool_name/version
+
+      # Set conda environment variables
+      env_vars <- c(
+        "PATH" = new_path,
+        "CONDA_PREFIX" = env_path,
+        "CONDA_DEFAULT_ENV" = env_name,
+        "CONDA_PROMPT_MODIFIER" = paste0("(", env_name, ") ")
+      )
+
+      # Unset potentially conflicting variables
+      env_vars <- c(env_vars,
+        "CONDA_PREFIX_1" = "",
+        "CONDA_STACKED_2" = ""
+      )
     }
   }
 
-  invisible(created_dirs)
+  # Execute command with resource monitoring
+  tryCatch(
+    {
+      # Start timing
+      start_time <- Sys.time()
+
+      # Wrap command with /usr/bin/time for resource monitoring if available
+      time_cmd <- Sys.which("time")
+      if (nzchar(time_cmd) && file.exists("/usr/bin/time")) {
+        # Use GNU time if available for detailed resource info
+        monitored_command <- sprintf("/usr/bin/time -f 'RESOURCE_INFO: %%e %%M %%P' sh -c %s", shQuote(command))
+      } else {
+        # Fallback to original command without resource monitoring
+        monitored_command <- command
+      }
+
+      # Execute command
+      result <- processx::run(
+        command = "/bin/bash",
+        args = c("-c", monitored_command),
+        wd = work_dir,
+        env = env_vars,
+        echo = show_output,
+        error_on_status = FALSE,
+        stdout_callback = if (show_output) NULL else function(x, ...) {},
+        stderr_callback = if (show_output) NULL else function(x, ...) {}
+      )
+
+      # End timing
+      end_time <- Sys.time()
+      runtime_seconds <- as.numeric(difftime(end_time, start_time, units = "secs"))
+
+      # Extract resource information from stderr if using /usr/bin/time
+      max_memory_mb <- NA
+      max_cpu_percent <- NA
+
+      if (nzchar(time_cmd) && file.exists("/usr/bin/time")) {
+        # Look for RESOURCE_INFO in stderr
+        resource_match <- regexpr("RESOURCE_INFO: ([0-9.]+) ([0-9]+) ([0-9.%]+)", result$stderr)
+        if (resource_match > 0) {
+          resource_str <- regmatches(result$stderr, resource_match)
+          # Extract values: time(s) memory(KB) cpu(%)
+          parts <- strsplit(gsub("RESOURCE_INFO: ", "", resource_str), " ")[[1]]
+          if (length(parts) >= 3) {
+            # Memory is in KB, convert to MB
+            max_memory_mb <- round(as.numeric(parts[2]) / 1024, 2)
+            # CPU percentage - remove % sign if present
+            cpu_str <- gsub("%", "", parts[3])
+            max_cpu_percent <- as.numeric(cpu_str)
+          }
+          # Clean up the resource info from stderr
+          result$stderr <- gsub("RESOURCE_INFO: [^\n]*\n?", "", result$stderr)
+        }
+      }
+
+      # If we couldn't get resource info from time command, try ps as fallback
+      if (is.na(max_memory_mb) && requireNamespace("ps", quietly = TRUE)) {
+        tryCatch(
+          {
+            # This is still just an approximation using current R process
+            proc_info <- ps::ps_memory_info()
+            max_memory_mb <- round(proc_info$rss / 1024 / 1024, 2) # Convert bytes to MB
+          },
+          error = function(e) {
+            max_memory_mb <- NA
+          }
+        )
+      }
+
+      # Write log file
+      .write_log_file(log_file, command, result)
+
+      list(
+        exit_code = result$status,
+        stdout = result$stdout,
+        stderr = result$stderr,
+        runtime_seconds = runtime_seconds,
+        memory_mb = max_memory_mb,
+        cpu_percent = max_cpu_percent
+      )
+    },
+    error = function(e) {
+      cli_alert_danger("Command execution failed: {e$message}")
+      list(
+        exit_code = 1,
+        stdout = "",
+        stderr = e$message,
+        runtime_seconds = NA,
+        memory_mb = NA,
+        cpu_percent = NA
+      )
+    }
+  )
 }
 
-# S3 Object for Tool Execution Results ----------------------------------------
-
-#' Create Tool Execution Result Object
-#'
-#' Internal function to create an S3 object representing the result of a tool execution.
-#'
-#' @param tool Character. Tool name.
-#' @param command Character. Command name.
-#' @param cmd_config List. Command configuration.
-#' @param user_params List. User provided parameters.
-#' @param rendered_cmd Character. The rendered command string.
-#' @param dry_run Logical. Whether this was a dry run.
-#' @param exit_code Numeric. Exit code from execution.
-#' @param stdout Character. Standard output.
-#' @param stderr Character. Standard error.
-#' @param log_file Character. Path to log file.
-#' @param env_paths List. Environment paths.
-#' @param resources List. Resource usage information.
-#'
-#' @return S3 object of class "sn_result".
+#' Execute Python Command
 #' @keywords internal
-.sn_create_result_object <- function(tool, command, cmd_config, user_params, rendered_cmd,
-                                     dry_run, exit_code, stdout, stderr, log_file, env_paths, resources) {
-  # Extract input, output, and parameter information
-  inputs <- .sn_extract_required_inputs(cmd_config$inputs, user_params)
-  outputs <- .sn_extract_user_params(cmd_config$outputs, user_params)
-  parameters <- .sn_extract_parameters(cmd_config, user_params)
+.execute_python_command <- function(python_code, env_path, work_dir, log_file, show_output) {
+  # Write Python code to temporary file
+  temp_py <- tempfile(fileext = ".py")
+  writeLines(python_code, temp_py)
 
-  result <- list(
-    # Tool execution metadata
-    tool = tool,
-    command = command,
-    command_line = rendered_cmd,
-    dry_run = dry_run,
+  # Find Python executable in environment
+  python_path <- file.path(env_path, "bin", "python")
+  if (!file.exists(python_path)) {
+    cli_abort("Python not found in environment: {python_path}")
+  }
 
-    # Execution results
-    exit_code = exit_code,
-    stdout = stdout,
-    stderr = stderr,
-    success = if (dry_run) NA else (exit_code == 0),
+  # Execute Python script with resource monitoring
+  tryCatch(
+    {
+      # Start resource monitoring
+      start_time <- Sys.time()
+      max_memory_mb <- 0
+      max_cpu_percent <- 0
 
-    # Environment and logging
-    env_paths = env_paths,
-    log_file = log_file,
+      # Execute Python script
+      result <- processx::run(
+        command = python_path,
+        args = temp_py,
+        wd = work_dir,
+        echo = show_output,
+        error_on_status = FALSE,
+        stdout_callback = if (show_output) NULL else function(x, ...) {},
+        stderr_callback = if (show_output) NULL else function(x, ...) {}
+      )
 
-    # Resource usage
-    resources = resources,
+      # End timing
+      end_time <- Sys.time()
+      runtime_seconds <- as.numeric(difftime(end_time, start_time, units = "secs"))
 
-    # User parameters organized by type
-    inputs = inputs,
-    outputs = outputs,
-    parameters = parameters,
+      # Get resource usage if ps package is available
+      if (requireNamespace("ps", quietly = TRUE)) {
+        tryCatch(
+          {
+            # Try to get memory usage from current R process as approximation
+            proc_info <- ps::ps_memory_info()
+            max_memory_mb <- round(proc_info$rss / 1024 / 1024, 2) # Convert bytes to MB
+            max_cpu_percent <- NA
+          },
+          error = function(e) {
+            max_memory_mb <- NA
+            max_cpu_percent <- NA
+          }
+        )
+      } else {
+        max_memory_mb <- NA
+        max_cpu_percent <- NA
+      }
 
-    # Full user parameters for reference
-    user_params = user_params,
+      # Write log file
+      .write_log_file(log_file, python_code, result)
 
-    # Timestamps
-    timestamp = Sys.time()
+      # Clean up temp file
+      unlink(temp_py)
+
+      list(
+        exit_code = result$status,
+        stdout = result$stdout,
+        stderr = result$stderr,
+        runtime_seconds = runtime_seconds,
+        memory_mb = max_memory_mb,
+        cpu_percent = max_cpu_percent
+      )
+    },
+    error = function(e) {
+      cli_alert_danger("Python execution failed: {e$message}")
+      # Clean up temp file on error too
+      unlink(temp_py)
+      list(
+        exit_code = 1,
+        stdout = "",
+        stderr = e$message,
+        runtime_seconds = NA,
+        memory_mb = NA,
+        cpu_percent = NA
+      )
+    }
+  )
+}
+
+#' Write Log File
+#' @keywords internal
+.write_log_file <- function(log_file, command, result) {
+  tryCatch(
+    {
+      log_content <- c(
+        paste("# ShennongTools Log -", Sys.time()),
+        "",
+        "## Command/Code:",
+        command,
+        "",
+        "## Exit Code:",
+        as.character(result$status),
+        "",
+        "## Standard Output:",
+        result$stdout,
+        "",
+        "## Standard Error:",
+        result$stderr,
+        ""
+      )
+
+      writeLines(log_content, log_file)
+    },
+    error = function(e) {
+      cli_alert_warning("Failed to write log file: {e$message}")
+    }
+  )
+}
+
+# Tool Installation Helper ----------------------------------------
+
+#' Install Tool with YAML Configuration
+#' Always use YAML-based installation to ensure all dependencies are included
+#' @keywords internal
+.install_tool_with_yaml <- function(tool_name, version, config, base_dir, show_messages) {
+  # Extract environment specification from the tool YAML
+  env <- config$environment %||% list()
+  channels <- env$channels %||% c("conda-forge", "bioconda")
+  dependencies <- env$dependencies %||% list(paste0(tool_name, "=", version))
+
+  # Resolve versions for dependencies that don't have explicit versions
+  resolved_dependencies <- .resolve_dependency_versions(dependencies, channels, show_messages)
+
+  # Get the actual version for the main tool for path naming
+  actual_version <- .get_tool_version_from_dependencies(tool_name, resolved_dependencies, version)
+
+  # Create temporary YAML environment file
+  temp_yaml <- tempfile(fileext = ".yaml")
+  on.exit(unlink(temp_yaml), add = TRUE)
+
+  # Create the environment path in tool_name/version format
+  env_path <- file.path(base_dir, tool_name, actual_version)
+
+  # Check if already exists
+  if (dir.exists(env_path)) {
+    if (show_messages) {
+      cli_alert_success("Environment already exists at {env_path}")
+    }
+    return(env_path)
+  }
+
+  yaml_content <- list(
+    name = basename(env_path), # This will be tool_name/version format for the yaml name
+    channels = channels,
+    dependencies = resolved_dependencies
+  )
+  write_yaml(yaml_content, temp_yaml)
+
+  # Create environment from YAML file using low-level mamba call
+  if (show_messages) {
+    cli_alert_info("Creating environment '{tool_name}/{actual_version}' from YAML")
+  }
+  result <- .mamba(
+    subcommand = "env",
+    options = c(
+      "create",
+      "-y",
+      "-p", env_path,
+      "-f", temp_yaml
+    )
   )
 
-  class(result) <- "sn_result"
-  return(result)
+  if (result$exit_code != 0) {
+    if (show_messages) {
+      cli_abort("Failed to create environment from YAML: {result$stderr}")
+    } else {
+      stop("Failed to create environment from YAML: ", result$stderr, call. = FALSE)
+    }
+  }
+
+  # Verify environment was created
+  if (!dir.exists(env_path)) {
+    if (show_messages) {
+      cli_abort("Environment creation failed at {env_path}")
+    } else {
+      stop("Environment creation failed at ", env_path, call. = FALSE)
+    }
+  }
+
+  if (show_messages) {
+    cli_alert_success("Environment created successfully at {env_path}")
+  }
+  return(env_path)
 }
 
-#' Print Method for Tool Execution Results
-#'
-#' @param x An sn_result object.
-#' @param ... Additional arguments (ignored).
-#'
-#' @export
-print.sn_result <- function(x, ...) {
-  # Header with tool and command
-  if (x$dry_run) {
-    cli_rule(left = paste0("\U1F50D Dry Run: ", x$tool, "::", x$command))
-  } else if (x$success) {
-    cli_rule(left = paste0("\u2705 Success: ", x$tool, "::", x$command))
-  } else {
-    cli_rule(left = paste0("\u274C Failed: ", x$tool, "::", x$command))
+# Global toolbox management ----------------------------------------
+
+# Store default toolbox in package environment
+.toolbox_env <- new.env(parent = emptyenv())
+
+#' Get Default Toolbox
+#' @keywords internal
+.get_default_toolbox <- function() {
+  if (!exists("default_toolbox", envir = .toolbox_env)) {
+    toolbox <- sn_initialize_toolbox()
+    assign("default_toolbox", toolbox, envir = .toolbox_env)
   }
-
-  # Display inputs if any
-  if (length(x$inputs) > 0) {
-    cli_bullets(c(" " = "{.strong Inputs:}"))
-    for (name in names(x$inputs)) {
-      value <- x$inputs[[name]]
-      # Check if it's a file path and show file info
-      if (is.character(value) && length(value) == 1 && file.exists(value)) {
-        size <- .sn_format_file_size(file.size(value))
-        cli_bullets(c("*" = "{.field {name}}: {.file {basename(value)}} ({.emph {size}}) - {.path {dirname(value)}}"))
-      } else {
-        cli_bullets(c("*" = "{.field {name}}: {.val {value}}"))
-      }
-    }
-    cli_text()
-  }
-
-  # Display outputs if any
-  if (length(x$outputs) > 0) {
-    cli_bullets(c(" " = "{.strong Outputs:}"))
-    for (name in names(x$outputs)) {
-      value <- x$outputs[[name]]
-      # Check if output file exists and show file info
-      if (is.character(value) && length(value) == 1) {
-        if (file.exists(value)) {
-          size <- .sn_format_file_size(file.size(value))
-          cli_bullets(c("*" = "{.field {name}}: {.file {basename(value)}} ({.emph {size}}) - {.path {dirname(value)}}"))
-        } else {
-          cli_bullets(c("!" = "{.field {name}}: {.file {basename(value)}} {.emph (not created)} - {.path {dirname(value)}}"))
-        }
-      } else {
-        cli_bullets(c("*" = "{.field {name}}: {.val {value}}"))
-      }
-    }
-    cli_text()
-  }
-
-  # Display parameters if any
-  if (length(x$parameters) > 0) {
-    cli_bullets(c(" " = "{.strong Parameters:}"))
-    for (name in names(x$parameters)) {
-      value <- x$parameters[[name]]
-      cli_bullets(c("*" = "{.field {name}}: {.val {value}}"))
-    }
-    cli_text()
-  }
-
-  # Display execution details
-  cli_bullets(c(" " = "{.strong Execution:}"))
-
-  # Environment
-  if (length(x$env_paths) > 0) {
-    cli_bullets(c("*" = "Environments:"))
-    for (i in seq_along(x$env_paths)) {
-      cli_bullets(c(" " = "  {i}. {.path {x$env_paths[[i]]}}"))
-    }
-  }
-
-  # Command
-  cli_bullets(c("*" = "Command: {.code {x$command_line}}"))
-
-  # Status
-  if (x$dry_run) {
-    cli_bullets(c("*" = "Status: {.emph Dry run (not executed)}"))
-  } else if (x$success) {
-    cli_bullets(c("*" = "Status: {.strong {.val Success}} (exit code {x$exit_code})"))
-  } else {
-    cli_bullets(c("*" = "Status: {.strong {.val Failed}} (exit code {x$exit_code})"))
-  }
-
-  # Resources (if execution completed)
-  if (!x$dry_run && !is.null(x$resources)) {
-    if (!is.null(x$resources$duration)) {
-      duration_str <- .sn_format_duration(x$resources$duration)
-      cli_bullets(c("*" = "Duration: {.emph {duration_str}}"))
-    }
-    if (!is.null(x$resources$peak_memory)) {
-      memory_str <- .sn_format_memory(x$resources$peak_memory)
-      cli_bullets(c("*" = "Peak Memory: {.emph {memory_str}}"))
-    }
-    if (!is.null(x$resources$peak_cpu)) {
-      cli_bullets(c("*" = "Peak CPU: {.emph {sprintf('%.1f%%', x$resources$peak_cpu)}}"))
-    }
-  }
-
-  # Log file
-  if (!is.null(x$log_file) && nzchar(x$log_file)) {
-    cli_bullets(c("*" = "Log: {.file {x$log_file}}"))
-  }
-
-  cli_rule()
-
-  invisible(x)
+  return(get("default_toolbox", envir = .toolbox_env))
 }
 
-#' Summary Method for Tool Execution Results
-#'
-#' @param object An sn_result object.
-#' @param ... Additional arguments (ignored).
-#'
+#' Set Default Toolbox
+#' @keywords internal
+.set_default_toolbox <- function(toolbox) {
+  assign("default_toolbox", toolbox, envir = .toolbox_env)
+}
+
+#' Reset Default Toolbox
 #' @export
-summary.sn_result <- function(object, ...) {
-  cat("Tool Execution Summary\n")
-  cat("======================\n")
-  cat("Tool:", object$tool, "\n")
-  cat("Command:", object$command, "\n")
-  cat("Timestamp:", format(object$timestamp), "\n")
+sn_reset_toolbox <- function() {
+  if (exists("default_toolbox", envir = .toolbox_env)) {
+    rm("default_toolbox", envir = .toolbox_env)
+  }
+  cli_alert_info("Default toolbox reset")
+}
 
-  if (object$dry_run) {
-    cat("Status: Dry run\n")
+#' Get Tool Installation Path
+#' @keywords internal
+.get_tool_install_path <- function(toolbox, tool_name, version) {
+  base_dir <- toolbox@base_dir
+
+  # Try both naming schemes
+  install_path1 <- file.path(base_dir, tool_name, version)
+  install_path2 <- file.path(base_dir, paste0(tool_name, "_", version))
+
+  if (dir.exists(install_path1)) {
+    return(install_path1)
+  } else if (dir.exists(install_path2)) {
+    return(install_path2)
   } else {
-    cat("Status:", if (object$success) "Success" else "Failed", "\n")
-    cat("Exit code:", object$exit_code, "\n")
-
-    if (!is.null(object$resources$duration)) {
-      cat("Duration:", .sn_format_duration(object$resources$duration), "\n")
-    }
+    cli_abort("Installation path not found for {tool_name} version {version}")
   }
-
-  cat("Inputs:", length(object$inputs), "\n")
-  cat("Outputs:", length(object$outputs), "\n")
-  cat("Parameters:", length(object$parameters), "\n")
-
-  if (!is.null(object$log_file) && nzchar(object$log_file)) {
-    cat("Log file:", object$log_file, "\n")
-  }
-
-  invisible(object)
 }

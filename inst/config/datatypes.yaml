@@ -1,0 +1,121 @@
+file_types:
+  fastq:
+    description: FASTQ format for raw sequencing reads
+    extensions: [".fq", ".fastq", ".fq.gz", ".fastq.gz"]
+    example_value: "path/to/reads.fastq.gz"
+  fasta:
+    description: FASTA format for nucleotide or protein sequences
+    extensions: [".fa", ".fasta", ".fna", ".fa.gz", ".fasta.gz"]
+    example_value: "path/to/genome.fa"
+  bam:
+    description: Binary alignment/map format for aligned reads
+    extensions: [".bam"]
+    example_value: "path/to/alignment.bam"
+  sam:
+    description: SAM format (text-based alignment file)
+    extensions: [".sam"]
+    example_value: "path/to/alignment.sam"
+  cram:
+    description: Compressed alignment format (CRAM)
+    extensions: [".cram"]
+    example_value: "path/to/alignment.cram"
+  vcf:
+    description: Variant Call Format for genetic variants
+    extensions: [".vcf", ".vcf.gz"]
+    example_value: "path/to/variants.vcf"
+  gtf:
+    description: "GTF: Gene annotation in tab-delimited format"
+    extensions: [".gtf", ".gtf.gz"]
+    example_value: "path/to/annotation.gtf"
+  gff:
+    description: "GFF/GFF3: Genome annotation and feature format"
+    extensions: [".gff", ".gff3", ".gff.gz", ".gff3.gz"]
+    example_value: "path/to/annotation.gff"
+  bed:
+    description: BED format for genomic intervals
+    extensions: [".bed", ".bed.gz"]
+    example_value: "path/to/regions.bed"
+  bigwig:
+    description: Binary format for genome-wide signal data
+    extensions: [".bw", ".bigWig"]
+    example_value: "path/to/signal.bw"
+  index:
+    description: Index files for alignment or annotation tools
+    extensions: [".bai", ".csi", ".fai", ".tbi", ".idx"]
+    example_value: "path/to/index.bai"
+  bai:
+    description: BAM index file
+    extensions: [".bai"]
+    example_value: "output/result.bam.bai"
+  crai:
+    description: CRAM index file
+    extensions: [".crai"]
+    example_value: "output/result.cram.crai"
+  fai:
+    description: FASTA index file
+    extensions: [".fai"]
+    example_value: "output/genome.fa.fai"
+  prefix:
+    description: A prefix string used to generate or refer to a set of related files (e.g., index basename)
+    extensions: []
+    example_value: "output/prefix"
+  json:
+    description: JSON file for structured data or configuration
+    extensions: [".json"]
+    example_value: "path/to/config.json"
+  yaml:
+    description: YAML configuration file
+    extensions: [".yaml", ".yml"]
+    example_value: "path/to/config.yaml"
+  hdf5:
+    description: Hierarchical Data Format (HDF5)
+    extensions: [".h5", ".hdf5"]
+    example_value: "path/to/data.h5"
+  mtx:
+    description: Matrix Market format (sparse matrix, often used with 10x data)
+    extensions: [".mtx"]
+    example_value: "path/to/matrix.mtx"
+  csv:
+    description: Comma-separated values (dense matrix or table)
+    extensions: [".csv"]
+    example_value: "path/to/data.csv"
+  tsv:
+    description: Tab-separated values (dense matrix or table)
+    extensions: [".tsv"]
+    example_value: "path/to/data.tsv"
+  txt:
+    description: Plain text table, typically tab-delimited
+    extensions: [".txt"]
+    example_value: "path/to/data.txt"
+  loom:
+    description: Loom format for single-cell expression matrices
+    extensions: [".loom"]
+    example_value: "path/to/data.loom"
+  anndata:
+    description: AnnData format used in Python single-cell workflows
+    extensions: [".h5ad"]
+    example_value: "path/to/data.h5ad"
+  directory:
+    description: Directory path
+    extensions: []
+    example_value: "path/to/directory"
+
+value_types:
+  integer:
+    description: Integer parameter (e.g., number of threads)
+    example_value: "4"
+  float:
+    description: Floating point parameter
+    example_value: "1.0"
+  numeric:
+    description: Numeric parameter
+    example_value: "1.0"
+  string:
+    description: General string parameter
+    example_value: "example_value"
+  boolean:
+    description: Boolean flag (true/false)
+    example_value: "TRUE"
+  logical:
+    description: Logical flag (TRUE/FALSE)
+    example_value: "TRUE"

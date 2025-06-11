@@ -1,10 +1,12 @@
 #' @importFrom processx run
-#' @importFrom yaml read_yaml
+#' @importFrom yaml yaml.load_file write_yaml
+#' @importFrom jsonlite fromJSON
+#' @importFrom jinjar render
 #' @importFrom methods new
+#' @importFrom tools R_user_dir
 #' @import cli
 #' @import fs
 #' @import rlang
-#' @import glue
 NULL
 
 # Global variables for caching
@@ -28,7 +30,8 @@ NULL
   # Initialize global toolbox cache
   tryCatch(
     {
-      toolbox <- sn_create_toolbox()
+      base_dir <- R_user_dir(package = "shennong-tools", which = "data")
+      toolbox <- sn_initialize_toolbox(base_dir)
       assign("toolbox", toolbox, envir = .sn_global_toolbox)
       cli_alert_success("ShennongTools toolbox initialized")
     },
@@ -36,4 +39,7 @@ NULL
       cli_alert_warning("Failed to initialize toolbox: {e$message}")
     }
   )
+
+  # Package initialization message
+  packageStartupMessage("ShennongTools loaded. Use sn_list_tools() to see available tools.")
 }

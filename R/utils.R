@@ -1,303 +1,3 @@
-#' Install micromamba
-#'
-#' This function installs [micromamba](https://mamba.readthedocs.io/en/latest/user_guide/micromamba.html),
-#' a lightweight `conda`-compatible package manager, into a user-defined directory. It automatically detects the
-#' operating system and architecture, downloads the appropriate binary, and extracts it into the specified location.
-#' 
-#' If `micromamba` is already installed at the target location, and `force = FALSE`, the existing binary is reused.
-#' 
-#' The function sets the `SN_MICROMAMBA` environment variable to the installed binary path, so that other ShennongTools
-#' functions can access it automatically.
-#'
-#' @param install_dir Character. The directory where `micromamba` should be installed.
-#'        Default is `~/.local/bin`.
-#' @param force Logical. If `TRUE`, forces reinstallation even if `micromamba` is already installed. Default is `FALSE`.
-#' @param version Character. The version of micromamba to install.
-#'        Use `"latest"` (default) for the latest stable version.
-#'
-#' @return A character string: the full path to the installed `micromamba` binary.
-#'
-#' @examples
-#' \dontrun{
-#' # Install micromamba to the default location
-#' sn_install_micromamba()
-#'
-#' # Force reinstall micromamba
-#' sn_install_micromamba(force = TRUE)
-#'
-#' # Install a specific version
-#' sn_install_micromamba(version = "1.5.6")
-#' }
-#'
-#' @export
-sn_install_micromamba <- function(
-    install_dir = "~/.local/bin",
-    force = FALSE, version = "latest") {
-  install_dir <- path_expand(install_dir)
-  micromamba_bin <- path(install_dir, "micromamba")
-
-  if (!force && file_exists(micromamba_bin)) {
-    Sys.setenv(SN_MICROMAMBA = micromamba_bin)
-    return(micromamba_bin)
-  }
-
-  dir_create(install_dir, recurse = TRUE)
-
-  # Determine platform
-  os <- Sys.info()[["sysname"]]
-  arch <- Sys.info()[["machine"]]
-
-  platform <- switch(os,
-    "Linux" = "linux",
-    "Darwin" = "osx",
-    cli_abort("Unsupported OS: {os}")
-  )
-
-  arch_tag <- switch(arch,
-    "x86_64" = "64",
-    "aarch64" = "aarch64",
-    "arm64" = "arm64",
-    cli_abort("Unsupported arch: {arch}")
-  )
-
-  url <- glue(
-    "https://micro.mamba.pm/api/micromamba/{platform}-{arch_tag}/{version}"
-  )
-
-  cli_alert_info("Downloading micromamba from {url}")
-
-  # Download and extract micromamba binary using processx
-  tryCatch(
-    {
-      # Download the file
-      temp_file <- tempfile(fileext = ".tar.bz2")
-      run("curl", args = c("-Ls", url, "-o", temp_file))
-
-      # Extract micromamba binary
-      run("tar", args = c(
-        "-xvj", "-C", install_dir, "-f", temp_file,
-        "bin/micromamba", "--strip-components=1"
-      ))
-
-      # Clean up temp file
-      unlink(temp_file)
-    },
-    error = function(e) {
-      cli_abort("Failed to download and extract micromamba: {e$message}")
-    }
-  )
-
-  # Verify install
-  if (!file_exists(micromamba_bin)) {
-    cli_abort("micromamba installation failed at {micromamba_bin}")
-  }
-
-  file_chmod(micromamba_bin, "u+x")
-  Sys.setenv(SN_MICROMAMBA = micromamba_bin)
-  cli_alert_success("micromamba installed at {micromamba_bin}")
-  return(micromamba_bin)
-}
-
-sn_check_mamba <- function(mamba = NULL) {
-  # Find mamba/micromamba binary
-  if (is.null(mamba)) {
-    # First check SN_MAMBA env var
-    mamba <- Sys.getenv("SN_MAMBA", unset = "")
-    if (mamba == "") {
-      # Then check system PATH for mamba
-      mamba_in_path <- Sys.which("mamba")
-      if (mamba_in_path != "" && mamba_in_path != "mamba") {
-        # Found mamba in PATH with full path
-        mamba <- mamba_in_path
-      } else {
-        # Check for micromamba
-        micromamba_in_path <- Sys.which("micromamba")
-        if (micromamba_in_path != "" && micromamba_in_path != "micromamba") {
-          mamba <- micromamba_in_path
-        } else {
-          # Check our installed micromamba
-          micromamba_bin <- path_expand("~/.local/bin/micromamba")
-          if (file_exists(micromamba_bin)) {
-            mamba <- micromamba_bin
-          } else {
-            # If not found, install micromamba
-            cli_alert_info("mamba not found, installing micromamba...")
-            mamba <- sn_install_micromamba()
-          }
-        }
-      }
-    }
-  }
-
-  if (!file_exists(mamba)) {
-    cli_abort("mamba not found at {mamba}, please install it first")
-  }
-  return(mamba)
-}
-
-#' Install a tool
-#'
-#' Install a bioinformatics tool using mamba/micromamba.
-#'
-#' @param tool Character. Tool name or Tool object.
-#' @param package_name Character. Package name for installation (optional, used if tool is a string).
-#' @param binary_name Character. Binary name to check after installation (optional).
-#' @param version Character. Version to install (NULL for latest).
-#' @param base_dir Character. Base directory for installations.
-#' @param mamba Character. Path to mamba/micromamba executable.
-#' @param channel Character. Conda channel to use.
-#' @param force Logical. Force reinstallation.
-#' @return Character. Path to the installed environment.
-#' @export
-sn_install_tool <- function(tool,
-                            package_name = NULL,
-                            binary_name = NULL,
-                            version = NULL,
-                            base_dir = NULL,
-                            mamba = NULL,
-                            channel = "bioconda",
-                            force = FALSE) {
-  # Handle Tool object vs tool name
-  if (inherits(tool, "Tool")) {
-    tool_name <- tool@name
-    package_name <- package_name %||% tool@package_name
-    binary_name <- binary_name %||% tool@binary_name
-    channel <- tool@channel
-    version <- version %||% tool@version
-  } else {
-    tool_name <- tool
-    package_name <- package_name %||% tool_name
-    binary_name <- binary_name %||% tool_name
-  }
-
-  mamba <- mamba %||% sn_check_mamba(mamba = mamba)
-  base_dir <- base_dir %||% tools::R_user_dir(
-    package = "shennong-tools", which = "data"
-  )
-
-  # Use package_name for version lookup
-  version <- version %||% .get_latest_tool_version(package_name, mamba, channel)
-
-  # Expand base path and env path - use tool_name for directory naming
-  base_dir <- path_expand(base_dir)
-  env_path <- path(base_dir, tool_name, version)
-
-  # Skip if already installed
-  if (!force && dir_exists(env_path)) {
-    cli_alert_success("{tool_name} {version} already installed at {env_path}")
-    return(env_path)
-  }
-
-  # Build command to install - use package_name for installation
-  cli_alert_info("Installing {package_name}={version} into {env_path}")
-  .sn_run_command(
-    command = mamba,
-    args = c(
-      "create",
-      "-y",
-      "-p", env_path,
-      "-c", "conda-forge",
-      if (channel != "conda-forge") paste0("-c ", channel),
-      paste0(package_name, "=", version)
-    )
-  )
-
-  # Check installation - use binary_name for verification
-  binary_path <- path(env_path, "bin", binary_name)
-  if (!file_exists(binary_path)) {
-    cli_alert_warning("{binary_name} binary not found at {binary_path}")
-
-    # Try alternative locations
-    alt_paths <- c(
-      path(env_path, "bin", tool_name),
-      path(env_path, "bin", package_name)
-    )
-
-    found_binary <- FALSE
-    for (alt_path in alt_paths) {
-      if (file_exists(alt_path)) {
-        cli_alert_info("Found binary at alternative location: {alt_path}")
-        found_binary <- TRUE
-        break
-      }
-    }
-
-    if (!found_binary) {
-      cli_alert_warning("Could not find any binary for {tool_name} in {env_path}/bin/")
-    }
-  } else {
-    cli_alert_success("Binary {binary_name} found at {binary_path}")
-  }
-
-  cli_alert_success("{tool_name} installed successfully at {env_path}")
-  return(env_path)
-}
-
-.get_latest_tool_version <- function(tool, mamba = NULL, channel = "bioconda") {
-  if (is.null(mamba)) {
-    mamba <- Sys.getenv(
-      x = "SN_MAMBA",
-      unset = path_expand("~/.local/bin/micromamba")
-    )
-  }
-  if (!file_exists(mamba)) {
-    cli_abort("mamba not found at {mamba}")
-  }
-
-  result <- .sn_run_command(
-    mamba,
-    args = c("search", tool, "-c", channel, "--json")
-  )
-  json <- jsonlite::fromJSON(result$stdout)
-
-  pkgs <- json$result$pkgs
-  if (!"version" %in% names(pkgs) || !"timestamp" %in% names(pkgs)) {
-    cli_abort("Search result missing expected fields.")
-  }
-
-  pkgs <- pkgs[order(pkgs$timestamp, decreasing = TRUE), ]
-  pkgs <- pkgs[pkgs$build_number == 0, ]
-  latest_version <- pkgs$version[1]
-  return(latest_version)
-}
-
-#' Internal Command Runner
-#'
-#' Internal function to run system commands and capture output.
-#'
-#' @param command Character. Command to run.
-#' @param args Character vector. Command arguments.
-#'
-#' @return List with stdout, stderr, exit_code.
-#' @keywords internal
-.sn_run_command <- function(command, args = character()) {
-  tryCatch(
-    {
-      # Use run for better error handling and output capture
-      result <- run(
-        command = command,
-        args = args,
-        stdout = TRUE,
-        stderr = TRUE,
-        error_on_status = FALSE
-      )
-
-      return(list(
-        stdout = result$stdout,
-        stderr = result$stderr,
-        exit_code = result$status
-      ))
-    },
-    error = function(e) {
-      return(list(
-        stdout = "",
-        stderr = as.character(e),
-        exit_code = 1
-      ))
-    }
-  )
-}
-
 #' Get or Set ShennongTools Options
 #'
 #' This function provides a convenient interface to get or set global options
@@ -451,7 +151,7 @@ sn_initialize <- function(check_mamba = TRUE) {
   mamba_status <- if (check_mamba) {
     tryCatch(
       {
-        mamba_path <- sn_check_mamba()
+        mamba_path <- .check_mamba()
         cli_alert_success("Mamba/micromamba found at: {mamba_path}")
         TRUE
       },
@@ -477,11 +177,13 @@ sn_initialize <- function(check_mamba = TRUE) {
 
 #' Format File Size
 #'
+#' Formats file size in bytes to human-readable format.
+#'
 #' @param bytes Numeric. File size in bytes.
 #'
 #' @return Character. Formatted file size.
 #' @keywords internal
-.sn_format_file_size <- function(bytes) {
+.format_file_size <- function(bytes) {
   if (is.na(bytes) || bytes == 0) {
     return("0 B")
   }
@@ -498,11 +200,13 @@ sn_initialize <- function(check_mamba = TRUE) {
 
 #' Format Memory Size
 #'
+#' Formats memory size in bytes to human-readable format.
+#'
 #' @param bytes Numeric. Memory size in bytes.
 #'
 #' @return Character. Formatted memory size.
 #' @keywords internal
-.sn_format_memory <- function(bytes) {
+.format_memory <- function(bytes) {
   if (is.na(bytes) || bytes == 0) {
     return("0 B")
   }
@@ -519,27 +223,344 @@ sn_initialize <- function(check_mamba = TRUE) {
 
 #' Format Duration
 #'
+#' Formats duration in seconds to human-readable format.
+#'
 #' @param seconds Numeric. Duration in seconds.
 #'
-#' @return Character. Formatted duration string.
+#' @return Character. Formatted duration.
 #' @keywords internal
-.sn_format_duration <- function(seconds) {
-  if (is.na(seconds)) {
-    return("unknown")
+.format_duration <- function(seconds) {
+  if (is.na(seconds) || seconds == 0) {
+    return("0s")
   }
 
-  if (seconds < 1) {
-    return(sprintf("%.0f ms", seconds * 1000))
-  } else if (seconds < 60) {
-    return(sprintf("%.1f s", seconds))
+  if (seconds < 60) {
+    return(sprintf("%.1fs", seconds))
   } else if (seconds < 3600) {
     minutes <- floor(seconds / 60)
-    secs <- seconds %% 60
-    return(sprintf("%d min %.1f s", minutes, secs))
+    remaining_seconds <- seconds %% 60
+    return(sprintf("%dm %.1fs", minutes, remaining_seconds))
   } else {
     hours <- floor(seconds / 3600)
-    minutes <- floor((seconds %% 3600) / 60)
-    secs <- seconds %% 60
-    return(sprintf("%d h %d min %.1f s", hours, minutes, secs))
+    remaining_seconds <- seconds %% 3600
+    minutes <- floor(remaining_seconds / 60)
+    seconds <- remaining_seconds %% 60
+    return(sprintf("%dh %dm %.1fs", hours, minutes, seconds))
+  }
+}
+
+#' Null Default Operator
+#'
+#' Returns right-hand side if left-hand side is NULL.
+#'
+#' @param x Left-hand side value.
+#' @param y Right-hand side value.
+#'
+#' @return x if not NULL, otherwise y.
+#' @keywords internal
+`%||%` <- function(x, y) {
+  if (is.null(x)) y else x
+}
+
+#' Find Tool Environment Path
+#'
+#' Find the installation path for a tool environment.
+#'
+#' @param tool_name Character. Name of the tool.
+#' @param tool_config List. Tool configuration.
+#'
+#' @return Character. Path to tool environment or NULL if not found.
+#' @keywords internal
+.sn_find_tool_env <- function(tool_name, tool_config) {
+  # This is a placeholder function that should work with the existing toolbox system
+  # In the actual implementation, this would integrate with the toolbox structure
+  base_dir <- R_user_dir(package = "shennong-tools", which = "data")
+
+  # Try both naming schemes
+  env_path1 <- file.path(base_dir, tool_name)
+  env_path2 <- file.path(base_dir, paste0(tool_name, "_latest"))
+
+  if (dir.exists(env_path1)) {
+    return(env_path1)
+  } else if (dir.exists(env_path2)) {
+    return(env_path2)
+  } else {
+    return(NULL)
+  }
+}
+
+#' Normalize Log Level
+#'
+#' Convert log level to numeric value.
+#'
+#' @param log_level Character or integer. Log level.
+#'
+#' @return Integer. Numeric log level.
+#' @keywords internal
+.sn_normalize_log_level <- function(log_level) {
+  if (is.character(log_level)) {
+    switch(log_level,
+      "silent" = 0,
+      "quiet" = 0,
+      "minimal" = 1,
+      "normal" = 2,
+      2 # default
+    )
+  } else {
+    as.integer(log_level)
+  }
+}
+
+#' Resolve versions for dependencies that don't have explicit versions
+#' @keywords internal
+.resolve_dependency_versions <- function(dependencies, channels, show_messages = TRUE) {
+  resolved <- character(0)
+
+  for (dep in dependencies) {
+    if (is.character(dep)) {
+      if (grepl("=", dep)) {
+        # Already has version specified
+        resolved <- c(resolved, dep)
+      } else {
+        # No version specified, get latest
+        tool_name <- trimws(dep)
+        tryCatch(
+          {
+            # Try bioconda first, then conda-forge
+            latest_version <- NULL
+            for (channel in c("bioconda", "conda-forge")) {
+              if (channel %in% channels) {
+                tryCatch(
+                  {
+                    latest_version <- .get_latest_version_from_conda(tool_name, channel = channel)
+                    break
+                  },
+                  error = function(e) {
+                    # Continue to next channel
+                  }
+                )
+              }
+            }
+
+            if (!is.null(latest_version)) {
+              resolved <- c(resolved, paste0(tool_name, "=", latest_version))
+              if (show_messages) {
+                cli_alert_info("Resolved {tool_name} to version {latest_version}")
+              }
+            } else {
+              # Fallback: use without version (let conda resolve)
+              resolved <- c(resolved, dep)
+              if (show_messages) {
+                cli_alert_warning("Could not resolve version for {tool_name}, using latest available")
+              }
+            }
+          },
+          error = function(e) {
+            # If version resolution fails, use the original dependency
+            resolved <- c(resolved, dep)
+            if (show_messages) {
+              cli_alert_warning("Version resolution failed for {tool_name}: {e$message}")
+            }
+          }
+        )
+      }
+    } else {
+      # Non-character dependency (e.g., pip dependencies), keep as-is
+      resolved <- c(resolved, dep)
+    }
+  }
+
+  return(resolved)
+}
+
+#' Extract the version for the main tool from resolved dependencies
+#' @keywords internal
+.get_tool_version_from_dependencies <- function(tool_name, resolved_dependencies, fallback_version) {
+  for (dep in resolved_dependencies) {
+    if (is.character(dep) && grepl("=", dep)) {
+      parts <- strsplit(dep, "\\s*=\\s*")[[1]]
+      if (length(parts) >= 2 && parts[1] == tool_name) {
+        return(parts[2])
+      }
+    }
+  }
+
+  # If not found in dependencies, return fallback
+  return(fallback_version)
+}
+
+#' Load and Manage Datatype Definitions
+#' @description Load datatype definitions from YAML files with support for
+#' global datatypes and tool-specific extensions
+#' @param tool_name Optional tool name to load tool-specific datatypes
+#' @return List containing file_types and value_types definitions
+#' @keywords internal
+.sn_load_datatypes <- function(tool_name = NULL) {
+  # Load global datatypes
+  global_datatypes_path <- system.file("config", "datatypes.yaml", package = "ShennongTools")
+
+  if (!file.exists(global_datatypes_path)) {
+    stop("Global datatypes.yaml not found at: ", global_datatypes_path)
+  }
+
+  global_datatypes <- yaml::read_yaml(global_datatypes_path)
+
+  # Load tool-specific datatypes if specified
+  if (!is.null(tool_name)) {
+    tool_datatypes_path <- system.file("tools", tool_name, "datatypes.yaml", package = "ShennongTools")
+
+    if (file.exists(tool_datatypes_path)) {
+      tool_datatypes <- yaml::read_yaml(tool_datatypes_path)
+
+      # Merge tool-specific datatypes with global ones (tool-specific takes precedence)
+      if (!is.null(tool_datatypes$file_types)) {
+        global_datatypes$file_types <- c(global_datatypes$file_types, tool_datatypes$file_types)
+      }
+      if (!is.null(tool_datatypes$value_types)) {
+        global_datatypes$value_types <- c(global_datatypes$value_types, tool_datatypes$value_types)
+      }
+    }
+  }
+
+  return(global_datatypes)
+}
+
+#' Get Example Value for Datatype
+#' @description Get the example value for a given datatype from the datatype registry
+#' @param datatype The datatype name
+#' @param tool_name Optional tool name for tool-specific datatypes
+#' @param input_output Whether this is for "input" or "output" (affects path prefix)
+#' @return Character string with example value
+#' @keywords internal
+.sn_get_example_value <- function(datatype, tool_name = NULL, input_output = "input") {
+  # Handle datatype as vector (take first one)
+  if (length(datatype) > 1) {
+    datatype <- datatype[1]
+  }
+
+  datatypes <- .sn_load_datatypes(tool_name)
+
+  # Check in file_types first
+  if (!is.null(datatypes$file_types[[datatype]])) {
+    example_val <- datatypes$file_types[[datatype]]$example_value
+    if (!is.null(example_val)) {
+      # Adjust path prefix for outputs
+      if (input_output == "output" && grepl("^path/to/", example_val)) {
+        example_val <- gsub("^path/to/", "output/", example_val)
+      }
+      return(paste0("\"", example_val, "\""))
+    }
+  }
+
+  # Check in value_types
+  if (!is.null(datatypes$value_types[[datatype]])) {
+    example_val <- datatypes$value_types[[datatype]]$example_value
+    if (!is.null(example_val)) {
+      return(example_val)
+    }
+  }
+
+  # Fallback for unknown datatypes
+  return("\"path/to/file\"")
+}
+
+#' Validate Datatype
+#' @description Validate if a datatype is defined in the datatype registry
+#' @param datatype The datatype name
+#' @param tool_name Optional tool name for tool-specific datatypes
+#' @return TRUE if valid, FALSE otherwise
+#' @keywords internal
+.sn_validate_datatype <- function(datatype, tool_name = NULL) {
+  # Handle datatype as vector
+  if (length(datatype) > 1) {
+    return(all(sapply(datatype, function(dt) .sn_validate_datatype(dt, tool_name))))
+  }
+
+  datatypes <- .sn_load_datatypes(tool_name)
+
+  # Check if datatype exists in file_types or value_types
+  exists_in_file_types <- !is.null(datatypes$file_types[[datatype]])
+  exists_in_value_types <- !is.null(datatypes$value_types[[datatype]])
+
+  return(exists_in_file_types || exists_in_value_types)
+}
+
+#' Generate Unified Usage Example
+#' @description Generate usage example with actual parameters using datatype registry
+#' @param cmd_config Command configuration
+#' @param command_name Command name
+#' @param tool_name Tool name
+#' @return Character string with usage example
+#' @keywords internal
+.sn_generate_usage_example <- function(cmd_config, command_name, tool_name) {
+  # Collect all parameters
+  example_params <- list()
+
+  # Add inputs with example values
+  if (!is.null(cmd_config$inputs)) {
+    for (input_name in names(cmd_config$inputs)) {
+      input_def <- cmd_config$inputs[[input_name]]
+      datatype <- input_def$datatype %||% "string"
+
+      example_value <- .sn_get_example_value(datatype, tool_name, "input")
+      example_params[[input_name]] <- example_value
+    }
+  }
+
+  # Add outputs with example values
+  if (!is.null(cmd_config$outputs)) {
+    for (output_name in names(cmd_config$outputs)) {
+      output_def <- cmd_config$outputs[[output_name]]
+      datatype <- output_def$datatype %||% "string"
+
+      example_value <- .sn_get_example_value(datatype, tool_name, "output")
+      example_params[[output_name]] <- example_value
+    }
+  }
+
+  # Add parameters with their defaults or example values
+  if (!is.null(cmd_config$params)) {
+    for (param_name in names(cmd_config$params)) {
+      param_def <- cmd_config$params[[param_name]]
+
+      if (!is.null(param_def$default)) {
+        # Use the actual default value
+        default_val <- param_def$default
+        example_params[[param_name]] <- if (is.character(default_val)) {
+          if (default_val == "") "\"\"" else paste0("\"", default_val, "\"")
+        } else {
+          as.character(default_val)
+        }
+      } else {
+        # Generate example based on datatype
+        datatype <- param_def$datatype %||% "string"
+        example_value <- .sn_get_example_value(datatype, tool_name, "param")
+        example_params[[param_name]] <- example_value
+      }
+    }
+  }
+
+  # Build the usage example
+  if (length(example_params) == 0) {
+    return(paste0("sn_run(\"", tool_name, "\", \"", command_name, "\")"))
+  }
+
+  # Format parameters nicely
+  param_lines <- character(0)
+  for (param_name in names(example_params)) {
+    param_lines <- c(param_lines, paste0("  ", param_name, " = ", example_params[[param_name]]))
+  }
+
+  # Create multi-line example for better readability
+  if (length(param_lines) <= 2) {
+    # Single line for short examples
+    params_str <- paste(param_lines, collapse = ", ")
+    return(paste0("sn_run(\"", tool_name, "\", \"", command_name, "\", ", gsub("^  ", "", params_str), ")"))
+  } else {
+    # Multi-line for longer examples
+    result <- paste0("sn_run(\"", tool_name, "\", \"", command_name, "\",\n")
+    result <- paste0(result, paste(param_lines, collapse = ",\n"))
+    result <- paste0(result, "\n)")
+    return(result)
   }
 }

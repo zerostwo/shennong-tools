@@ -5,19 +5,25 @@
 \alias{Toolbox-class}
 \title{Toolbox S4 Class}
 \description{
-Manages a collection of bioinformatics tools.
+Manages a collection of bioinformatics tools with version control.
+The tools slot contains a nested list structure:
+tools = list(
+  tool1 = list(
+    version1 = Tool_object,
+    version2 = Tool_object
+  ),
+  tool2 = list(
+    version1 = Tool_object
+  )
+)
 }
 \section{Slots}{
 
 \describe{
-\item{\code{tools}}{List. Named list of Tool objects.}
+\item{\code{tools}}{List. Nested list of Tool objects organized by tool name and version.}
 
 \item{\code{base_dir}}{Character. Base directory for tool installations.}
 
 \item{\code{mamba_path}}{Character. Path to mamba/micromamba executable.}
-
-\item{\code{config}}{List. Configuration options for the toolbox.}
-
-\item{\code{registry}}{List. Registry of available tools and their metadata.}
 }}
 

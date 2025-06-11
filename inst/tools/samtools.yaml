@@ -1,118 +1,134 @@
-tool_name: "samtools"
-display_name: "SAMtools"
-description: "Utilities for manipulating alignments in the SAM, BAM, and CRAM formats"
-citation: "10.1093/bioinformatics/btp352"
-package:
-  name: "samtools"
-  channel: "bioconda"
-  version: latest
+tool_name: samtools
+description: Utilities for manipulating alignments in the SAM, BAM, and CRAM formats
+citation: 10.1093/bioinformatics/btp352
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - samtools
 
 commands:
   view:
-    description: "View and convert SAM/BAM/CRAM files"
-    binary: "samtools"
-    help_flag: "--help"
+    description: View and convert SAM/BAM/CRAM files
+    binary: samtools
+    help_flag: --help
     inputs:
       input:
-        type: file
+        datatype: [bam, sam, cram]
         required: true
-        description: "Input SAM/BAM/CRAM file"
-      output:
-        type: file
-        required: true
-        description: "Output file path"
-      region:
-        type: string
-        required: false
-        description: "Region to extract (e.g., 'chr1:1000-2000')"
-      extra:
-        type: string
-        required: false
-        default: ""
-        description: "Additional flags for samtools view"
+        description: Input alignment file
     outputs:
-      output_file:
-        type: file
-        description: "Converted file"
-    args_template: >
-      samtools view {extra} {input}{% if region %} {region}{% endif %} -o {output}
+      output:
+        datatype: [bam, sam, cram]
+        required: true
+        description: Output alignment file
+    params:
+      format:
+        datatype: string
+        default: "BAM"
+        description: Output format (BAM, SAM, CRAM)
+      threads:
+        datatype: integer
+        default: 1
+        description: Number of threads
+    shell: >
+      samtools view -h {% if format == "BAM" %}-b{% elif format == "CRAM" %}-C{% endif %}
+      --threads {{ threads }} {{ input }} -o {{ output }}
 
   index:
-    description: "Index BAM or CRAM files"
-    binary: "samtools"
-    help_flag: "--help"
+    description: Create index for BAM/CRAM file
+    binary: samtools
+    help_flag: --help
     inputs:
       input:
-        type: file
+        datatype: [bam, cram]
         required: true
-        description: "Input BAM/CRAM file"
-      output:
-        type: file
-        required: false
-        description: "Output index file path (optional)"
-      extra:
-        type: string
-        required: false
-        default: ""
-        description: "Additional flags for samtools index"
+        description: Input file to be indexed
     outputs:
       index_file:
-        type: file
-        description: "Index file (.bai or .crai)"
-    args_template: >
-      samtools index {extra} {input}{% if output %} {output}{% endif %}
-
-  faidx:
-    description: "Index FASTA file"
-    binary: "samtools"
-    help_flag: "--help"
-    inputs:
-      fasta:
-        type: file
-        required: true
-        description: "Input FASTA file"
-      region:
-        type: string
+        datatype: [bai, crai]
         required: false
-        description: "Region to extract (e.g., 'chr1:1000-2000')"
-      extra:
-        type: string
-        required: false
-        default: ""
-        description: "Additional flags for samtools faidx"
-    outputs:
-      fai_index:
-        type: file
-        description: "FASTA index file (.fai)"
-    args_template: >
-      samtools faidx {extra} {fasta} {region}
+        description: Output index file (auto-generated if not specified)
+    params:
+      threads:
+        datatype: integer
+        default: 1
+        description: Number of threads
+    shell: >
+      samtools index --threads {{ threads }} {{ input }}
+      {% if index_file %}{{ index_file }}{% endif %}
 
-  split:
-    description: "Split BAM files into multiple outputs"
-    binary: "samtools"
-    help_flag: "--help"
+  sort:
+    description: Sort alignments by leftmost coordinates or by read name
+    binary: samtools
+    help_flag: --help
     inputs:
       input:
-        type: file
+        datatype: [bam, sam, cram]
         required: true
-        description: "Input BAM file"
-      extra:
-        type: string
-        required: false
-        default: ""
-        description: "Additional flags for samtools split"
+        description: Input alignment file
     outputs:
-      reads1:
-        type: file
+      output:
+        datatype: bam
         required: true
-        description: "Output file for read 1"
-      reads2:
-        type: file
+        description: Sorted output file
+    params:
+      sort_by_name:
+        datatype: boolean
+        default: false
+        description: Sort by read name instead of coordinate
+      threads:
+        datatype: integer
+        default: 1
+        description: Number of threads
+    shell: >
+      samtools sort {% if sort_by_name %}-n{% endif %}
+      --threads {{ threads }} -o {{ output }} {{ input }}
+
+  faidx:
+    description: Create index for FASTA file
+    binary: samtools
+    help_flag: --help
+    inputs:
+      fasta:
+        datatype: fasta
         required: true
-        description: "Output file for read 2"
-      unmatched:
-        type: file
+        description: Input FASTA file
+    outputs:
+      index:
+        datatype: fai
+        required: false
+        description: FASTA index file (.fai, auto-generated)
+    shell: >
+      samtools faidx {{ fasta }}
+
+  fastq:
+    description: Convert BAM to FASTQ format
+    binary: samtools
+    help_flag: --help
+    inputs:
+      input:
+        datatype: bam
         required: true
-        description: "Output file for unmatched reads"
-    args_template: >
-      samtools fastq {extra} -1 {reads1} -2 {reads2} -s {unmatched} {input}
+        description: Input BAM file
+    outputs:
+      output1:
+        datatype: fastq
+        required: false
+        description: Output FASTQ file for read1 (single-end or paired-end)
+      output2:
+        datatype: fastq
+        required: false
+        description: Output FASTQ file for read2 (paired-end only)
+    params:
+      threads:
+        datatype: integer
+        default: 1
+        description: Number of threads
+    shell: >
+      samtools fastq --threads {{ threads }}
+      {% if output1 %}-1 {{ output1 }}{% endif %}
+      {% if output2 %}-2 {{ output2 }}{% endif %}
+      {{ input }}

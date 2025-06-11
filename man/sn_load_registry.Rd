@@ -2,20 +2,17 @@
 % Please edit documentation in R/registry.R
 \name{sn_load_registry}
 \alias{sn_load_registry}
-\title{Load Tool Registry from YAML Files}
+\title{Load Tool Registry}
 \usage{
-sn_load_registry(tools_dir = NULL, refresh = FALSE)
+sn_load_registry(tools_dir = NULL)
 }
 \arguments{
 \item{tools_dir}{Character. Directory containing YAML tool definitions.
 Defaults to package inst/tools directory.}
-
-\item{refresh}{Logical. Whether to refresh the registry cache.}
 }
 \value{
-Named list of tool configurations.
+List of tool configurations.
 }
 \description{
-This function loads all YAML tool definitions from the inst/tools directory
-and builds a registry of available tools.
+Loads the built-in tool registry from YAML files.
 }

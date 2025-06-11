@@ -1,5 +1,5 @@
-# Generic Function Definitions ------------------------------------------------
-# This file contains all generic function definitions for the Shennong Tool System
+# Generic and Export Definitions -----------------------------------------------
+# This file contains all generic function definitions and roxygen export tags
 
 #' @include AllClasses.R
 NULL
