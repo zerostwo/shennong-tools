@@ -1,0 +1,271 @@
+---
+title: "Deeptools"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Deeptools}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Deeptools
+
+A suite of tools to process and visualize deep sequencing data
+
+## Citation
+
+**Citation:** 10.1093/nar/gkw257
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- deeptools
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("deeptools", "bamcoverage", ...)
+```
+
+## Available Commands
+
+### bamcoverage
+
+Generate normalized bigWig files from BAM files
+
+**Basic Usage:**
+
+```r
+result <- sn_run("deeptools", "bamcoverage",
+  # Add your parameters here
+)
+```
+
+### computematrix
+
+Compute scores over genomic regions for heatmap/profile plots
+
+**Basic Usage:**
+
+```r
+result <- sn_run("deeptools", "computematrix",
+  # Add your parameters here
+)
+```
+
+### plotheatmap
+
+Plot a heatmap from a computeMatrix output
+
+**Basic Usage:**
+
+```r
+result <- sn_run("deeptools", "plotheatmap",
+  # Add your parameters here
+)
+```
+
+### plotprofile
+
+Plot an average profile from a computeMatrix output
+
+**Basic Usage:**
+
+```r
+result <- sn_run("deeptools", "plotprofile",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Bamcoverage Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("deeptools", "bamcoverage",
+  bam = "alignment.bam",
+  bigwig = "example_file",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Computematrix Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("deeptools", "computematrix",
+  bigwig = "example_file",
+  regions = "regions.bed",
+  matrix = "example_file",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Plotheatmap Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("deeptools", "plotheatmap",
+  matrix = "example_file",
+  heatmap = "example_file"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Plotprofile Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("deeptools", "plotprofile",
+  matrix = "example_file",
+  profile = "input_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### bamcoverage Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `bam` | bam | Yes | Input BAM file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `bigwig` | bigwig | Yes | Output bigWig file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `bin_size` | integer | 50 | Bin size for coverage computation |
+| `normalization` | string | "RPKM" | Normalization method (e.g., RPKM, CPM, BPM, RPGC, None) |
+| `threads` | integer | 4 | Number of threads to use |
+| `extras` | string | "" | Additional options to pass to bamCoverage |
+
+### computematrix Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `bigwig` | bigwig | Yes | Input bigWig file |
+| `regions` | bed | Yes | BED/GTF file with regions of interest |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `matrix` | tsv | Yes | Output matrix file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mode` | string | "reference-point" | Mode of matrix computation: reference-point or scale-regions |
+| `reference_point` | string | "TSS" | Reference point if using reference-point mode |
+| `before` | integer | 1000 | Distance upstream of the reference point |
+| `after` | integer | 1000 | Distance downstream of the reference point |
+| `threads` | integer | 4 | Number of threads |
+| `extras` | string | "" | Additional options |
+
+### plotheatmap Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `matrix` | tsv | Yes | Input matrix from computeMatrix |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `heatmap` | png | Yes | Output heatmap image |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `color_map` | string | "RdBu" | Colormap name |
+| `extras` | string | "" | Additional arguments |
+
+### plotprofile Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `matrix` | tsv | Yes | Input matrix from computeMatrix |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `profile` | png | Yes | Output profile plot image |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `per_group` | boolean | FALSE | Plot individual group profiles |
+| `extras` | string | "" | Additional arguments |
+

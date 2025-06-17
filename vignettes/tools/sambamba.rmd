@@ -1,0 +1,324 @@
+---
+title: "Sambamba"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Sambamba}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Sambamba
+
+Fast and efficient BAM file processing tool written in D
+
+## Citation
+
+**Citation:** 10.1093/bioinformatics/btv098
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- sambamba
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("sambamba", "view", ...)
+```
+
+## Available Commands
+
+### view
+
+Filter and convert BAM/SAM files
+
+**Basic Usage:**
+
+```r
+result <- sn_run("sambamba", "view",
+  # Add your parameters here
+)
+```
+
+### sort
+
+Sort BAM files by coordinate
+
+**Basic Usage:**
+
+```r
+result <- sn_run("sambamba", "sort",
+  # Add your parameters here
+)
+```
+
+### index
+
+Create BAM index
+
+**Basic Usage:**
+
+```r
+result <- sn_run("sambamba", "index",
+  # Add your parameters here
+)
+```
+
+### markdup
+
+Mark duplicate reads
+
+**Basic Usage:**
+
+```r
+result <- sn_run("sambamba", "markdup",
+  # Add your parameters here
+)
+```
+
+### flagstat
+
+Print alignment statistics (similar to samtools flagstat)
+
+**Basic Usage:**
+
+```r
+result <- sn_run("sambamba", "flagstat",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### View Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("sambamba", "view",
+  input = "input_file.txt",
+  output = "output_file.txt",
+  threads = 4,
+  format = "bam"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Sort Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("sambamba", "sort",
+  input = "input_file.txt",
+  output = "output_file.txt",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Index Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("sambamba", "index",
+  input = "input_file.txt",
+  bai = "example_file",
+  threads = 2
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Markdup Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("sambamba", "markdup",
+  input = "input_file.txt",
+  output = "output_file.txt",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Flagstat Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("sambamba", "flagstat",
+  input = "input_file.txt",
+  stats = "results.txt",
+  threads = 2
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### view Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bam, sam, cram | Yes | Input alignment file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | bam, sam | Yes | Output file after filtering or format conversion |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `format` | string | "bam" | Output format (bam or sam) |
+| `region` | string | "" | Region string to extract (e.g., chr1:1000-2000) |
+| `threads` | integer | 4 | Number of threads |
+| `filter` | string | "" | Filtering expression for reads |
+| `extras` | string | "" | Extra parameters |
+
+### sort Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bam | Yes | Input BAM file to sort |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | bam | Yes | Sorted BAM file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 4 | Number of threads |
+| `memory` | string | "4G" | Amount of memory to use per thread |
+| `extras` | string | "" | Additional parameters |
+
+### index Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bam | Yes | BAM file to index |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `bai` | bai | Yes | Output index file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 2 | Number of threads |
+| `extras` | string | "" | Extra options |
+
+### markdup Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bam | Yes | Input sorted BAM file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | bam | Yes | Output BAM file with duplicates marked |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `remove_dups` | boolean | FALSE | Remove duplicates instead of just marking them |
+| `threads` | integer | 4 | Number of threads |
+| `extras` | string | "" | Additional parameters |
+
+### flagstat Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bam | Yes | BAM file to analyze |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `stats` | txt | Yes | Output file with alignment statistics |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 2 | Number of threads |
+| `extras` | string | "" | Extra options |
+

@@ -1,0 +1,156 @@
+tool_name: deeptools
+description: A suite of tools to process and visualize deep sequencing data
+citation: 10.1093/nar/gkw257
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - deeptools
+
+commands:
+  bamcoverage:
+    description: Generate normalized bigWig files from BAM files
+    binary: bamCoverage
+    help_flag: --help
+
+    inputs:
+      bam:
+        datatype: bam
+        required: true
+        description: Input BAM file
+    outputs:
+      bigwig:
+        datatype: bigwig
+        required: true
+        description: Output bigWig file
+    params:
+      bin_size:
+        datatype: integer
+        default: 50
+        description: Bin size for coverage computation
+      normalization:
+        datatype: string
+        default: "RPKM"
+        description: Normalization method (e.g., RPKM, CPM, BPM, RPGC, None)
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads to use
+      extras:
+        datatype: string
+        default: ""
+        description: Additional options to pass to bamCoverage
+    shell: >
+      {{ binary }} -b {{ bam }} -o {{ bigwig }}
+      --binSize {{ bin_size }} --normalizeUsing {{ normalization }}
+      --numberOfProcessors {{ threads }} {{ extras }}
+
+  computematrix:
+    description: Compute scores over genomic regions for heatmap/profile plots
+    binary: computeMatrix
+    help_flag: --help
+
+    inputs:
+      bigwig:
+        datatype: bigwig
+        required: true
+        description: Input bigWig file
+      regions:
+        datatype: bed
+        required: true
+        description: BED/GTF file with regions of interest
+    outputs:
+      matrix:
+        datatype: tsv
+        required: true
+        description: Output matrix file
+    params:
+      mode:
+        datatype: string
+        default: "reference-point"
+        description: "Mode of matrix computation: reference-point or scale-regions"
+      reference_point:
+        datatype: string
+        default: "TSS"
+        description: Reference point if using reference-point mode
+      before:
+        datatype: integer
+        default: 1000
+        description: Distance upstream of the reference point
+      after:
+        datatype: integer
+        default: 1000
+        description: Distance downstream of the reference point
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads
+      extras:
+        datatype: string
+        default: ""
+        description: Additional options
+    shell: >
+      {{ binary }} {{ mode }}
+      -S {{ bigwig }} -R {{ regions }}
+      -o {{ matrix }} --referencePoint {{ reference_point }}
+      --beforeRegionStartLength {{ before }}
+      --afterRegionStartLength {{ after }}
+      --numberOfProcessors {{ threads }} {{ extras }}
+
+  plotheatmap:
+    description: Plot a heatmap from a computeMatrix output
+    binary: plotHeatmap
+    help_flag: --help
+
+    inputs:
+      matrix:
+        datatype: tsv
+        required: true
+        description: Input matrix from computeMatrix
+    outputs:
+      heatmap:
+        datatype: png
+        required: true
+        description: Output heatmap image
+    params:
+      color_map:
+        datatype: string
+        default: "RdBu"
+        description: Colormap name
+      extras:
+        datatype: string
+        default: ""
+        description: Additional arguments
+    shell: >
+      {{ binary }} -m {{ matrix }} -out {{ heatmap }}
+      --colorMap {{ color_map }} {{ extras }}
+
+  plotprofile:
+    description: Plot an average profile from a computeMatrix output
+    binary: plotProfile
+    help_flag: --help
+
+    inputs:
+      matrix:
+        datatype: tsv
+        required: true
+        description: Input matrix from computeMatrix
+    outputs:
+      profile:
+        datatype: png
+        required: true
+        description: Output profile plot image
+    params:
+      per_group:
+        datatype: boolean
+        default: false
+        description: Plot individual group profiles
+      extras:
+        datatype: string
+        default: ""
+        description: Additional arguments
+    shell: >
+      {{ binary }} -m {{ matrix }} -out {{ profile }}
+      {% if per_group %} --perGroup{% endif %} {{ extras }}

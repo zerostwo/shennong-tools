@@ -10,6 +10,8 @@
 #'
 #' @return Character vector of available tool names (if simple=TRUE) or
 #'   invisible output with formatted display.
+#' @family tool information
+#' @concept tool information
 #' @export
 #'
 #' @examples
@@ -70,13 +72,8 @@ sn_list_tools <- function(tools_dir = NULL, simple = FALSE) {
     installed <- FALSE
     version_info <- ""
     if (!is.null(toolbox) && tool_name %in% names(toolbox@tools)) {
-      versions <- names(toolbox@tools[[tool_name]])
-      installed_versions <- c()
-      for (ver in versions) {
-        if (toolbox@tools[[tool_name]][[ver]]@installed) {
-          installed_versions <- c(installed_versions, ver)
-        }
-      }
+      tool_obj <- toolbox@tools[[tool_name]]
+      installed_versions <- sn_get_installed_versions(tool_obj, toolbox@base_dir)
       if (length(installed_versions) > 0) {
         installed <- TRUE
         version_info <- paste0(" (v", paste(installed_versions, collapse = ", v"), ")")
@@ -125,6 +122,8 @@ sn_list_tools <- function(tools_dir = NULL, simple = FALSE) {
 #' @param tools_dir Character. Directory containing YAML tool definitions.
 #'
 #' @return List with tool information or NULL if not found.
+#' @family tool information
+#' @concept tool information
 #' @export
 #'
 #' @examples
@@ -166,95 +165,6 @@ sn_get_tool_info <- function(tool_name, tools_dir = NULL) {
       return(NULL)
     }
   )
-}
-
-#' Show Tool Details
-#'
-#' Displays detailed information about a built-in tool including commands and parameters.
-#'
-#' @param tool_name Character. Name of the tool.
-#' @param command Character. Specific command to show (optional).
-#'
-#' @return Invisible. Information is printed to console.
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#' # Show all tool information
-#' sn_show_tool("samtools")
-#'
-#' # Show specific command
-#' sn_show_tool("samtools", "view")
-#' }
-sn_show_tool <- function(tool_name, command = NULL) {
-  info <- sn_get_tool_info(tool_name)
-  if (is.null(info)) {
-    return(invisible())
-  }
-
-  # Load full configuration for detailed display
-  tools_dir <- system.file("tools", package = "ShennongTools")
-  if (tools_dir == "") {
-    tools_dir <- file.path("inst", "tools")
-  }
-
-  yaml_file <- file.path(tools_dir, paste0(tool_name, ".yaml"))
-  config <- yaml.load_file(yaml_file)
-
-  # Display header
-  cli_rule("Tool: {tool_name}")
-
-  # Basic information
-  cli_bullets(c("i" = "Description: {info$description}"))
-  if (nzchar(info$citation)) {
-    cli_bullets(c("i" = "Citation: {info$citation}"))
-  }
-
-  # Environment information
-  if (length(info$environment) > 0) {
-    cli_bullets(c("i" = "Environment:"))
-
-    if (!is.null(info$environment$channels)) {
-      cli_bullets(c(" " = "  Channels: {paste(info$environment$channels, collapse = ', ')}"))
-    }
-
-    if (!is.null(info$environment$dependencies)) {
-      cli_bullets(c(" " = "  Dependencies:"))
-      for (dep in info$environment$dependencies) {
-        if (is.character(dep)) {
-          cli_bullets(c(" " = "    - {dep}"))
-        } else if (is.list(dep) && "pip" %in% names(dep)) {
-          cli_bullets(c(" " = "    - pip packages:"))
-          for (pip_dep in dep$pip) {
-            cli_bullets(c(" " = "      - {pip_dep}"))
-          }
-        }
-      }
-    }
-  }
-
-  # Commands
-  if (!is.null(command)) {
-    # Show specific command
-    if (command %in% names(config$commands)) {
-      .show_command_details(config$commands[[command]], command)
-    } else {
-      cli_alert_warning("Command '{command}' not found. Available commands: {paste(info$commands, collapse = ', ')}")
-    }
-  } else {
-    # Show all commands
-    cli_bullets(c("i" = "Commands:"))
-    for (cmd_name in info$commands) {
-      cmd_config <- config$commands[[cmd_name]]
-      desc <- cmd_config$description %||% ""
-      cli_bullets(c(" " = "  {cmd_name}: {desc}"))
-    }
-
-    cli_bullets(c("i" = "Use sn_show_tool('{tool_name}', 'command_name') for detailed command information"))
-  }
-
-  cli_rule()
-  invisible()
 }
 
 #' Show Command Details
@@ -347,7 +257,7 @@ sn_show_tool <- function(tool_name, command = NULL) {
 #' @keywords internal
 .generate_usage_example_registry <- function(cmd_config, command_name, tool_name) {
   # Use the unified datatype-based example generation function
-  return(.sn_generate_usage_example(cmd_config, command_name, tool_name))
+  return(.generate_usage_example(cmd_config, command_name, tool_name))
 }
 
 #' Load Tool Registry
@@ -358,6 +268,8 @@ sn_show_tool <- function(tool_name, command = NULL) {
 #'   Defaults to package inst/tools directory.
 #'
 #' @return List of tool configurations.
+#' @family tool information
+#' @concept tool information
 #' @export
 sn_load_registry <- function(tools_dir = NULL) {
   if (is.null(tools_dir)) {
@@ -407,6 +319,8 @@ sn_load_registry <- function(tools_dir = NULL) {
 #' @param registry List. Tool registry (optional, will load if not provided).
 #'
 #' @return List with tool configuration or NULL if not found.
+#' @family tool information
+#' @concept tool information
 #' @export
 sn_get_tool_config <- function(tool_name, registry = NULL) {
   if (is.null(registry)) {

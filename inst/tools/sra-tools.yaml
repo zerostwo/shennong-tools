@@ -1,0 +1,91 @@
+tool_name: sra-tools
+description: Toolkit for accessing and converting SRA data
+citation: 10.1093/bioinformatics/btz664
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - sra-tools
+
+commands:
+  prefetch:
+    description: Download SRA file from NCBI SRA database
+    binary: prefetch
+    help_flag: --help
+
+    inputs:
+      accession:
+        datatype: string
+        required: true
+        description: SRA accession (e.g., SRR123456)
+
+    outputs:
+      sra_file:
+        datatype: sra
+        required: false
+        description: Output SRA file (stored in NCBI default location or specified path)
+
+    params:
+      output_dir:
+        datatype: string
+        default: "."
+        description: Output directory to store downloaded SRA files
+      extras:
+        datatype: string
+        default: ""
+        description: Additional options for prefetch
+
+    shell: >
+      {{ binary }}
+      {{ accession }}
+      --output-directory {{ output_dir }}
+      {{ extras }}
+
+  fasterq_dump:
+    description: Convert SRA files to FASTQ format
+    binary: fasterq-dump
+    help_flag: --help
+
+    inputs:
+      accession:
+        datatype: string
+        required: true
+        description: SRA accession or path to `.sra` file
+
+    outputs:
+      fastq1:
+        datatype: fastq
+        required: true
+        description: First read FASTQ file (R1 or SE)
+      fastq2:
+        datatype: fastq
+        required: false
+        description: Second read FASTQ file (R2 for paired-end)
+
+    params:
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads to use
+      output_dir:
+        datatype: string
+        default: "."
+        description: Output directory for FASTQ files
+      split_files:
+        datatype: boolean
+        default: true
+        description: Whether to split paired-end reads into two files
+      extras:
+        datatype: string
+        default: ""
+        description: Additional options for fasterq-dump
+
+    shell: >
+      {{ binary }}
+      {{ accession }}
+      --threads {{ threads }}
+      --outdir {{ output_dir }}
+      {% if split_files %}--split-files{% endif %}
+      {{ extras }}

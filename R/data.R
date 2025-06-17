@@ -1,0 +1,84 @@
+#' Default Toolbox with Pre-configured Tools
+#'
+#' A pre-built Toolbox object containing all built-in bioinformatics tools
+#' available in ShennongTools. This toolbox is automatically created during
+#' package build and includes tool configurations for 19+ popular bioinformatics
+#' tools without any installations.
+#'
+#' @format A Toolbox S4 object with the following slots:
+#' \describe{
+#'   \item{tools}{List of Tool objects, one for each built-in tool}
+#'   \item{base_dir}{Character. Default installation directory (empty, set at runtime)}
+#'   \item{mamba_path}{Character. Path to mamba/micromamba (empty, set at runtime)}
+#' }
+#'
+#' @details
+#' The default toolbox contains pre-configured Tool objects for the following categories:
+#'
+#' **Sequence Analysis:**
+#' - `samtools` - SAM/BAM/CRAM manipulation
+#' - `bedtools` - Genome interval operations
+#' - `seqkit` - FASTA/FASTQ toolkit
+#'
+#' **Quality Control:**
+#' - `fastqc` - FASTQ quality assessment
+#' - `fastp` - FASTQ preprocessing
+#' - `multiqc` - Multi-tool QC report aggregation
+#'
+#' **Alignment:**
+#' - `hisat2` - RNA-seq alignment
+#' - `star` - Spliced alignment
+#' - `sambamba` - BAM processing
+#'
+#' **Quantification:**
+#' - `kallisto` - RNA-seq quantification
+#' - `salmon` - Transcript quantification
+#' - `stringtie` - Transcript assembly
+#' - `subread` - Feature counting
+#'
+#' **Peak Calling:**
+#' - `macs2` - ChIP-seq peak calling
+#'
+#' **Specialized Analysis:**
+#' - `kraken2` - Taxonomic classification
+#' - `deeptools` - NGS data visualization
+#' - `sra-tools` - SRA data access
+#' - `pyscenic` - Single-cell regulatory networks
+#' - `scanpy` - Single-cell analysis
+#'
+#' Each tool includes:
+#' - Complete command definitions with parameters
+#' - Environment specifications for conda installation
+#' - Input/output type validation
+#' - Usage examples and help documentation
+#'
+#' @usage data(default_toolbox)
+#'
+#' @examples
+#' # Load the default toolbox
+#' data(default_toolbox)
+#'
+#' # View toolbox contents
+#' default_toolbox
+#'
+#' # List available tools
+#' names(default_toolbox@tools)
+#'
+#' # Get information about a specific tool
+#' samtools_tool <- default_toolbox@tools[["samtools"]]
+#' samtools_tool
+#'
+#' # Use the default toolbox as starting point
+#' my_toolbox <- default_toolbox
+#' my_toolbox <- sn_add_tool(my_toolbox, "custom_tool", yaml = "my_tool.yaml")
+#'
+#' @seealso
+#' \code{\link{sn_initialize_toolbox}} for creating empty toolboxes,
+#' \code{\link{sn_add_tool}} for adding tools,
+#' \code{\link{sn_list_tools}} for listing available tools,
+#' \code{\link{sn_get_toolbox_info}} for toolbox information
+#'
+#' @family tool management
+#' @concept tool management
+#' @keywords datasets
+"default_toolbox"

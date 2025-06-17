@@ -1,0 +1,307 @@
+---
+title: "Samtools"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Samtools}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Samtools
+
+Utilities for manipulating alignments in the SAM, BAM, and CRAM formats
+
+## Citation
+
+**Citation:** 10.1093/bioinformatics/btp352
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- samtools
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("samtools", "view", ...)
+```
+
+## Available Commands
+
+### view
+
+View and convert SAM/BAM/CRAM files
+
+**Basic Usage:**
+
+```r
+result <- sn_run("samtools", "view",
+  # Add your parameters here
+)
+```
+
+### index
+
+Create index for BAM/CRAM file
+
+**Basic Usage:**
+
+```r
+result <- sn_run("samtools", "index",
+  # Add your parameters here
+)
+```
+
+### sort
+
+Sort alignments by leftmost coordinates or by read name
+
+**Basic Usage:**
+
+```r
+result <- sn_run("samtools", "sort",
+  # Add your parameters here
+)
+```
+
+### faidx
+
+Create index for FASTA file
+
+**Basic Usage:**
+
+```r
+result <- sn_run("samtools", "faidx",
+  # Add your parameters here
+)
+```
+
+### fastq
+
+Convert BAM to FASTQ format
+
+**Basic Usage:**
+
+```r
+result <- sn_run("samtools", "fastq",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### View Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("samtools", "view",
+  input = "input_file.txt",
+  output = "output_file.txt",
+  threads = 1,
+  format = "BAM"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Index Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("samtools", "index",
+  input = "input_file.txt",
+  threads = 1
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Sort Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("samtools", "sort",
+  input = "input_file.txt",
+  output = "output_file.txt",
+  threads = 1
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Faidx Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("samtools", "faidx",
+  fasta = "sequences.fasta"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Fastq Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("samtools", "fastq",
+  input = "input_file.txt",
+  threads = 1
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### view Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bam, sam, cram | Yes | Input alignment file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | bam, sam, cram | Yes | Output alignment file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `format` | string | "BAM" | Output format (BAM, SAM, CRAM) |
+| `threads` | integer | 1 | Number of threads |
+
+### index Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bam, cram | Yes | Input file to be indexed |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `index_file` | bai, crai | No | Output index file (auto-generated if not specified) |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 1 | Number of threads |
+
+### sort Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bam, sam, cram | Yes | Input alignment file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | bam | Yes | Sorted output file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `sort_by_name` | boolean | FALSE | Sort by read name instead of coordinate |
+| `threads` | integer | 1 | Number of threads |
+
+### faidx Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fasta` | fasta | Yes | Input FASTA file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `index` | fai | No | FASTA index file (.fai, auto-generated) |
+
+### fastq Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bam | Yes | Input BAM file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output1` | fastq | No | Output FASTQ file for read1 (single-end or paired-end) |
+| `output2` | fastq | No | Output FASTQ file for read2 (paired-end only) |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 1 | Number of threads |
+

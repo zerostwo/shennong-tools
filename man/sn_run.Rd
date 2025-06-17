@@ -11,7 +11,7 @@ sn_run(
   ...,
   dry_run = FALSE,
   work_dir = ".",
-  log_level = "normal",
+  log_level = "minimal",
   log_dir = NULL
 )
 }
@@ -29,7 +29,7 @@ sn_run(
 \item{work_dir}{Character. Working directory for execution.}
 
 \item{log_level}{Character or Integer. Logging level: "silent"/"quiet"/0,
-"minimal"/1, "normal"/2. Default "normal".}
+"minimal"/1, "normal"/2. Default "minimal".}
 
 \item{log_dir}{Character. Directory to save log files. If NULL, uses work_dir.}
 }
@@ -56,3 +56,8 @@ result <- sn_run("samtools", "index",
 )
 }
 }
+\seealso{
+Other core functions: 
+\code{\link{sn_options}()}
+}
+\concept{core functions}

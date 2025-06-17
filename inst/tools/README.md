@@ -107,8 +107,96 @@ Tool-specific datatypes take precedence over global ones when there are naming c
 Supports:
 
 - {{ var }} for substitution
-
 - {% if condition %}...{% endif %} for conditional logic
+
+### Critical Jinjar Rules
+
+**1. Optional Parameter Handling**
+- Optional inputs/outputs are automatically set to `NULL` when not provided by the user
+- Empty strings (`""`) are considered **truthy** in jinjar, so use proper NULL handling
+- Template system automatically handles this conversion for `required: false` parameters
+
+**2. YAML Syntax Requirements**
+- Use YAML folded scalar syntax (`>`) for multi-line shell commands
+- **Never use backslash line continuation (`\`)** - jinjar preserves backslashes literally
+- For multi-line commands, use folded scalar format and separate arguments logically
+
+**3. Conditional Logic Patterns**
+```yaml
+# ✅ Correct - simple conditional for optional parameters
+shell: >
+  {{ binary }} -i {{ input1 }}
+  {% if input2 %} -I {{ input2 }}{% endif %}
+  -o {{ output1 }}
+  {% if output2 %} -O {{ output2 }}{% endif %}
+
+# ✅ Correct - handling paired vs single-end reads
+shell: >
+  {{ binary }} -x {{ index }}
+  {% if read2 %}-1 {{ read1 }} -2 {{ read2 }}{% else %}-U {{ read1 }}{% endif %}
+  | samtools view -Sbh -o {{ bam }}
+```
+
+**4. Common Pitfalls to Avoid**
+```yaml
+# ❌ Incorrect - backslash continuation
+shell: |
+  command --option1 {{ param1 }} \
+    --option2 {{ param2 }} \
+    {{ input }} {{ output }}
+
+# ❌ Incorrect - empty string checking (not needed)
+shell: >
+  {{ binary }}
+  {% if param and param != "" %} --param {{ param }}{% endif %}
+
+# ✅ Correct - simple existence check is sufficient
+shell: >
+  {{ binary }}
+  {% if param %} --param {{ param }}{% endif %}
+```
+
+**5. Binary Parameter**
+- All templates automatically receive a `binary` parameter containing the command's binary value
+- Always use `{{ binary }}` at the start of shell templates instead of hardcoding the executable name
+
+**6. Template Debugging**
+- Use `dry_run = TRUE` in `sn_run()` to test template rendering without execution
+- Check rendered commands for correct parameter inclusion/exclusion
+- Verify optional parameters are properly omitted when not provided
+
+## Parameter Standardization
+
+### Threading Parameters
+- **Always use `threads`** as the parameter name for threading/parallelization options
+- Map to tool-specific flags in the shell template (e.g., `--num_workers`, `-@`, `-p`)
+- Example:
+```yaml
+params:
+  threads:
+    datatype: integer
+    default: 4
+    description: Number of threads to use
+
+shell: >
+  {{ binary }} --num_workers {{ threads }} {{ input }} {{ output }}
+```
+
+### Extra Parameters
+- **Always include `extras` parameter** unless all possible parameters are explicitly defined
+- This allows users to pass additional tool-specific arguments not covered in the YAML
+- Use empty string as default value
+- Example:
+```yaml
+params:
+  extras:
+    datatype: string
+    default: ""
+    description: "Additional arguments to pass to the tool command."
+
+shell: >
+  {{ binary }} {{ input }} {{ output }} {{ extras }}
+```
 
 ## Best Practices
 

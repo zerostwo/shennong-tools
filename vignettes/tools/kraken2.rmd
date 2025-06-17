@@ -1,0 +1,164 @@
+---
+title: "Kraken2"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Kraken2}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Kraken2
+
+Kraken 2 is a taxonomic classification system for metagenomics
+
+## Citation
+
+**Citation:** 10.1186/s13059-019-1891-0
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- kraken2
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("kraken2", "classify", ...)
+```
+
+## Available Commands
+
+### classify
+
+Classify sequences against a Kraken2 database
+
+**Basic Usage:**
+
+```r
+result <- sn_run("kraken2", "classify",
+  # Add your parameters here
+)
+```
+
+### build
+
+Build or update a Kraken2 database
+
+**Basic Usage:**
+
+```r
+result <- sn_run("kraken2", "build",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Classify Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("kraken2", "classify",
+  input = "input_file.txt",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Build Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("kraken2", "build",
+  db_dir = "example_file",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### classify Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | fastq, fasta | Yes | Input reads (single-end or paired-end) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `report` | tsv | No | Kraken2 classification report (with --report) |
+| `output` | tsv | No | Classified output (with --output) |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `db` | directory | "" | Path to Kraken2 database |
+| `paired` | boolean | FALSE | Whether input is paired-end |
+| `threads` | integer | 4 | Number of threads |
+| `confidence` | numeric | 0 | Confidence threshold for classification |
+| `extras` | string | "" | Additional arguments |
+
+### build Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fasta` | fasta | No | Optional FASTA files for custom library |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `db_dir` | directory | Yes | Output database directory |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `db` | string | "kraken2_db" | Name of the Kraken2 database directory |
+| `build_command` | string | "--build" | Kraken2 build subcommand (e.g., --download-library, --add-to-library, --build) |
+| `taxon` | string | "" | NCBI taxonomy (e.g., bacteria, viral) for downloading |
+| `threads` | integer | 4 | Number of threads |
+| `extras` | string | "" | Extra options |
+

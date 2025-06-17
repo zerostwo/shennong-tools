@@ -30,3 +30,11 @@ available_tools <- sn_list_tools(simple = TRUE)
 sn_list_tools()
 }
 }
+\seealso{
+Other tool information: 
+\code{\link{sn_get_tool_config}()},
+\code{\link{sn_get_tool_info}()},
+\code{\link{sn_help}()},
+\code{\link{sn_load_registry}()}
+}
+\concept{tool information}

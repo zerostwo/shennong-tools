@@ -1,0 +1,228 @@
+---
+title: "Star"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Star}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Star
+
+Spliced Transcripts Alignment to a Reference (STAR)
+
+## Citation
+
+**Citation:** 10.1093/bioinformatics/bts635
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- star
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("star", "index", ...)
+```
+
+## Available Commands
+
+### index
+
+Generate genome index for STAR
+
+**Basic Usage:**
+
+```r
+result <- sn_run("star", "index",
+  # Add your parameters here
+)
+```
+
+### align
+
+Align RNA-seq reads to the reference genome using STAR
+
+**Basic Usage:**
+
+```r
+result <- sn_run("star", "align",
+  # Add your parameters here
+)
+```
+
+### solo
+
+Perform single-cell RNA-seq alignment and quantification using STARsolo
+
+**Basic Usage:**
+
+```r
+result <- sn_run("star", "solo",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Index Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("star", "index",
+  fasta = "sequences.fasta",
+  genome_dir = "reference.fasta",
+  threads = 8
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Align Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("star", "align",
+  genome_dir = "reference.fasta",
+  read1 = "sample_R1.fastq.gz",
+  bam = "alignment.bam",
+  threads = 8
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Solo Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("star", "solo",
+  genome_dir = "reference.fasta",
+  read1 = "sample_R1.fastq.gz",
+  read2 = "sample_R2.fastq.gz",
+  solo_output = "output_file.txt",
+  threads = 8
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### index Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fasta` | fasta | Yes | Reference genome in FASTA format |
+| `gtf` | gtf | No | Gene annotation in GTF format |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `genome_dir` | directory | Yes | Output directory for STAR genome index |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 8 | Number of threads to use |
+| `sjdbOverhang` | integer | 100 | Read length - 1 for spliced junction detection |
+| `extras` | string | "" | Additional STAR arguments |
+
+### align Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `genome_dir` | directory | Yes | STAR genome index directory |
+| `read1` | fastq | Yes | First read FASTQ file |
+| `read2` | fastq | No | Second read FASTQ file (optional for single-end) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `bam` | bam | Yes | Output BAM file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 8 | Number of threads |
+| `output_prefix` | string | "star_" | Prefix for output files |
+| `outSAMtype` | string | "BAM SortedByCoordinate" | BAM output type |
+| `extras` | string | "" | Extra STAR options |
+
+### solo Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `genome_dir` | directory | Yes | STAR genome index directory |
+| `read1` | fastq | Yes | Read 1 FASTQ file (usually cell barcode + UMI) |
+| `read2` | fastq | Yes | Read 2 FASTQ file (RNA read) |
+| `whitelist` | txt | No | Cell barcode whitelist (e.g. 10x barcodes) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `solo_output` | directory | Yes | Output directory for STARsolo quantification results |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 8 | Number of threads |
+| `solo_type` | string | "CB_UMI_Simple" | Type of single-cell protocol |
+| `solo_features` | string | "Gene" | Features to quantify (e.g., Gene, GeneFull, SJ) |
+| `solo_cell_filter` | string | "EmptyDrops_CR" | Cell calling method |
+| `output_prefix` | string | "starsolo_" | Output file prefix |
+| `extras` | string | "" | Additional STARsolo options |
+

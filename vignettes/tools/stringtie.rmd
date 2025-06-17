@@ -1,0 +1,162 @@
+---
+title: "Stringtie"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Stringtie}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Stringtie
+
+Transcript assembly and quantification for RNA-Seq
+
+## Citation
+
+**Citation:** 10.1038/nbt.3122
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- stringtie
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("stringtie", "quant", ...)
+```
+
+## Available Commands
+
+### quant
+
+Assemble transcripts and estimate their abundance from aligned reads (BAM)
+
+**Basic Usage:**
+
+```r
+result <- sn_run("stringtie", "quant",
+  # Add your parameters here
+)
+```
+
+### merge
+
+Merge assembled transcripts across multiple samples
+
+**Basic Usage:**
+
+```r
+result <- sn_run("stringtie", "merge",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Quant Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("stringtie", "quant",
+  bam = "alignment.bam",
+  gtf = "annotations.gtf",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Merge Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("stringtie", "merge",
+  gtf_list = "example_file",
+  merged_gtf = "annotations.gtf",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### quant Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `bam` | bam | Yes | Aligned reads in BAM format |
+| `annotation` | gtf | No | Reference annotation to guide assembly |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `gtf` | gtf | Yes | Output assembled transcripts in GTF format |
+| `abundance` | tsv | No | Transcript abundance file (gene abundance or transcript TPMs) |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 4 | Number of threads to use |
+| `extras` | string | "" | Additional arguments for StringTie |
+
+### merge Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `gtf_list` | tsv, txt | Yes | Text file listing multiple GTFs to be merged |
+| `reference` | gtf | No | Optional reference annotation GTF |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `merged_gtf` | gtf | Yes | Merged transcript annotations in GTF format |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 4 | Number of threads to use |
+| `extras` | string | "" | Additional arguments for StringTie merge |
+

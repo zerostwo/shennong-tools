@@ -1,0 +1,253 @@
+---
+title: "Quick Start Guide"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Quick Start Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Getting Started with ShennongTools
+
+ShennongTools provides a unified interface for running bioinformatics tools through R. This guide will get you up and running in minutes.
+
+## Installation
+
+Install ShennongTools from GitHub:
+
+```{r install}
+if (!require("devtools")) install.packages("devtools")
+devtools::install_github("zerostwo/shennong-tools")
+```
+
+## Basic Workflow
+
+### 1. Load the Package
+
+```{r setup}
+library(ShennongTools)
+
+# Initialize the package (one-time setup)
+sn_initialize()
+```
+
+### 2. Explore Available Tools
+
+```{r explore}
+# List all available tools
+sn_list_tools()
+
+# Get help for a specific tool
+sn_help("samtools")
+
+# See available commands for a tool
+sn_show_tool("samtools")
+```
+
+### 3. Run Your First Command
+
+The basic syntax is: `sn_run(tool_name, command, ...parameters)`
+
+```{r first_command}
+# Example: Convert SAM to BAM
+result <- sn_run("samtools", "view",
+  input = "alignment.sam",
+  output = "alignment.bam",
+  flags = "-Sb",
+  threads = 4
+)
+
+# Check if it was successful
+print(result)
+```
+
+## Common Patterns
+
+### Quality Control with FastP
+
+```{r fastp}
+# Process paired-end FASTQ files
+result <- sn_run("fastp", "filter",
+  input1 = "sample_R1.fastq.gz",
+  input2 = "sample_R2.fastq.gz",
+  output1 = "clean_R1.fastq.gz",
+  output2 = "clean_R2.fastq.gz",
+  html = "fastp_report.html",
+  threads = 8
+)
+```
+
+### RNA-seq Alignment
+
+```{r rnaseq}
+# 1. Build HISAT2 index
+sn_run("hisat2", "build",
+  reference = "genome.fa",
+  index_base = "genome_index",
+  threads = 8
+)
+
+# 2. Align reads
+result <- sn_run("hisat2", "align",
+  index = "genome_index",
+  read1 = "clean_R1.fastq.gz",
+  read2 = "clean_R2.fastq.gz",
+  bam = "aligned.bam",
+  threads = 8
+)
+
+# 3. Sort and index BAM
+sn_run("samtools", "sort",
+  input = "aligned.bam",
+  output = "sorted.bam",
+  threads = 4
+)
+
+sn_run("samtools", "index", input = "sorted.bam")
+```
+
+### Peak Calling (ChIP-seq)
+
+```{r chipseq}
+# Call peaks with MACS2
+result <- sn_run("macs2", "callpeak",
+  treatment = "ChIP.bam",
+  control = "Input.bam",
+  name = "sample",
+  format = "BAM",
+  gsize = "hs",
+  qvalue = 0.05
+)
+```
+
+## Key Features
+
+### Automatic Installation
+
+Tools are installed automatically on first use:
+
+```{r auto_install}
+# First time running a tool - it will be installed automatically
+result <- sn_run("seqkit", "stats", input = "sequences.fasta")
+```
+
+### Dry Run Mode
+
+Preview commands before running:
+
+```{r dry_run}
+# See what command would be executed
+result <- sn_run("samtools", "view",
+  input = "file.bam",
+  output = "filtered.bam",
+  flags = "-q 30",
+  dry_run = TRUE
+)
+
+# Check the rendered command
+print(result@rendered_command)
+```
+
+### Logging Control
+
+Control output verbosity:
+
+```{r logging}
+# Silent mode (minimal output)
+result <- sn_run("samtools", "index",
+  input = "file.bam",
+  log_level = "silent"
+)
+
+# Detailed mode (show tool output)
+result <- sn_run("samtools", "stats",
+  input = "file.bam",
+  output = "stats.txt",
+  log_level = "normal"
+)
+```
+
+### Resource Monitoring
+
+Monitor execution resources:
+
+```{r resources}
+result <- sn_run("hisat2", "align",
+  index = "genome_index",
+  read1 = "sample_R1.fastq.gz",
+  read2 = "sample_R2.fastq.gz",
+  bam = "aligned.bam",
+  threads = 8
+)
+
+# Check resource usage
+cat("Runtime:", sn_get_toolcall_runtime(result), "seconds\n")
+cat("Memory:", result@resources$peak_memory_mb, "MB\n")
+cat("Success:", sn_is_toolcall_success(result), "\n")
+```
+
+## Configuration
+
+### Global Options
+
+Set global preferences:
+
+```{r options}
+# Set logging level and log directory
+sn_options(
+  log_level = "minimal",
+  log_dir = "~/analysis_logs"
+)
+
+# View current options
+sn_options()
+```
+
+### Tool Versions
+
+Manage tool versions:
+
+```{r versions}
+# Use specific version
+result <- sn_run("samtools", "view",
+  input = "file.bam",
+  version = "1.19.2"
+)
+
+# Check installed versions
+toolbox <- sn_initialize_toolbox()
+tool <- sn_get_tool(toolbox, "samtools")
+versions <- sn_get_installed_versions(tool)
+print(versions)
+```
+
+## Best Practices
+
+1. **Use descriptive file names**: Make your analysis reproducible
+2. **Set thread counts**: Optimize for your system's capabilities  
+3. **Check outputs**: Always verify that commands completed successfully
+4. **Use dry_run**: Preview complex commands before execution
+5. **Set log directories**: Keep organized logs for troubleshooting
+
+## Getting Help
+
+- **Package documentation**: `?sn_run`
+- **Tool help**: `sn_help("tool_name")`
+- **Command help**: `sn_help("tool_name", "command")`
+- **Raw tool help**: `sn_help("tool_name", raw = TRUE)`
+
+## Next Steps
+
+- Explore the [Tools Overview](tools-overview.html) for detailed tool documentation
+- Learn about [Advanced Usage](advanced-usage.html) features
+- Check out [YAML Specification](yaml-specification.html) for custom tools
+
+Happy analyzing! 🧬 

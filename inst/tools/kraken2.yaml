@@ -1,0 +1,107 @@
+tool_name: kraken2
+description: Kraken 2 is a taxonomic classification system for metagenomics
+citation: 10.1186/s13059-019-1891-0
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - kraken2
+
+commands:
+
+  classify:
+    description: Classify sequences against a Kraken2 database
+    binary: kraken2
+    help_flag: --help
+
+    inputs:
+      input:
+        datatype: [fastq, fasta]
+        required: true
+        description: Input reads (single-end or paired-end)
+
+    outputs:
+      report:
+        datatype: tsv
+        required: false
+        description: Kraken2 classification report (with --report)
+      output:
+        datatype: tsv
+        required: false
+        description: Classified output (with --output)
+
+    params:
+      db:
+        datatype: directory
+        default: ""
+        description: Path to Kraken2 database
+      paired:
+        datatype: boolean
+        default: false
+        description: Whether input is paired-end
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads
+      confidence:
+        datatype: numeric
+        default: 0.0
+        description: Confidence threshold for classification
+      extras:
+        datatype: string
+        default: ""
+        description: Additional arguments
+    shell: >
+      {{ binary }}
+      {% if db %} --db {{ db }}{% endif %}
+      {% if paired %} --paired{% endif %}
+      --threads {{ threads }} --confidence {{ confidence }}
+      --report {{ report }} --output {{ output }}
+      {{ extras }} {{ input }}
+
+  build:
+    description: Build or update a Kraken2 database
+    binary: kraken2-build
+    help_flag: --help
+
+    inputs:
+      fasta:
+        datatype: fasta
+        required: false
+        description: Optional FASTA files for custom library
+
+    outputs:
+      db_dir:
+        datatype: directory
+        required: true
+        description: Output database directory
+
+    params:
+      db:
+        datatype: string
+        default: "kraken2_db"
+        description: Name of the Kraken2 database directory
+      build_command:
+        datatype: string
+        default: "--build"
+        description: Kraken2 build subcommand (e.g., --download-library, --add-to-library, --build)
+      taxon:
+        datatype: string
+        default: ""
+        description: NCBI taxonomy (e.g., bacteria, viral) for downloading
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads
+      extras:
+        datatype: string
+        default: ""
+        description: Extra options
+    shell: >
+      {{ binary }} --db {{ db }}
+      {{ build_command }}
+      {% if taxon %} {{ taxon }}{% endif %}
+      {% if fasta %} {{ fasta }}{% endif %}
+      --threads {{ threads }} {{ extras }}

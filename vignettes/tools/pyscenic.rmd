@@ -1,0 +1,225 @@
+---
+title: "Pyscenic"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Pyscenic}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Pyscenic
+
+pySCENIC is a python implementation of the SCENIC pipeline to infer gene regulatory networks from single-cell RNA-seq data.
+
+## Citation
+
+**Citation:** 10.1038/nmeth.4463
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- python=3.10
+- numpy<1.24
+- numba<0.57
+- setuptools<80
+- list(pip = "pyscenic")
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("pyscenic", "grn", ...)
+```
+
+## Available Commands
+
+### grn
+
+Infer co-expression modules using GRNBoost2
+
+**Basic Usage:**
+
+```r
+result <- sn_run("pyscenic", "grn",
+  # Add your parameters here
+)
+```
+
+### ctx
+
+Prune GRNs using motif enrichment (cisTarget)
+
+**Basic Usage:**
+
+```r
+result <- sn_run("pyscenic", "ctx",
+  # Add your parameters here
+)
+```
+
+### aucell
+
+Score regulons using AUCell
+
+**Basic Usage:**
+
+```r
+result <- sn_run("pyscenic", "aucell",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Grn Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("pyscenic", "grn",
+  expression = "example_file",
+  tf_list = "results.txt",
+  adjacencies = "data.csv",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Ctx Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("pyscenic", "ctx",
+  adjacencies = "data.csv",
+  motifs = "example_file",
+  regulons = "data.csv",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Aucell Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("pyscenic", "aucell",
+  expression = "example_file",
+  regulons = "data.csv",
+  auc_matrix = "example_file",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### grn Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `expression` | loom, csv | Yes | The name of the file that contains the expression matrix for the single cell experiment. Two file formats are supported: csv (rows=cells x columns=genes) or loom (rows=genes x columns=cells). |
+| `tf_list` | txt | Yes | The name of the file that contains the list of transcription factors (TXT; one TF per line). |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `adjacencies` | csv | Yes | Output file/stream, i.e. a table of TF-target genes (CSV). |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `transpose` | boolean | FALSE | Transpose the expression matrix (rows=genes x columns=cells). |
+| `seed` | integer | 42 | RSeed value for regressor random state initialization. Applies to both GENIE3 and GRNBoost2. The default is to use a random seed. |
+| `method` | string | "grnboost2" | Method for GRN inference (grnboost2 or genie3) |
+| `threads` | integer | 4 | Number of threads to use |
+| `extras` | string | "" | Additional arguments to pass to the pyscenic command. |
+
+### ctx Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `adjacencies` | csv | Yes | Adjacency matrix from GRN step |
+| `motifs` | feather | Yes | Motif ranking databases |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `regulons` | csv | Yes | Output file containing regulons |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 4 | Number of threads to use |
+| `extras` | string | "" | Additional arguments to pass to the pyscenic command. |
+
+### aucell Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `expression` | loom | Yes | Expression matrix (loom) |
+| `regulons` | csv | Yes | File containing regulons |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `auc_matrix` | loom | Yes | AUCell matrix saved as loom |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 4 | Number of threads to use |
+| `extras` | string | "" | Additional arguments to pass to the pyscenic command. |
+

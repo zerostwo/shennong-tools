@@ -37,3 +37,8 @@ sn_options(log_level = 1) # minimal
 sn_options(log_level = "normal", log_dir = NULL)
 }
 }
+\seealso{
+Other core functions: 
+\code{\link{sn_run}()}
+}
+\concept{core functions}

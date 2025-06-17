@@ -7,14 +7,16 @@
 \description{
 Represents a bioinformatics tool with its configuration and metadata.
 Based on YAML configuration files that define tools with their environments,
-commands, and parameters.
+commands, and parameters. Now supports multiple versions within a single Tool object.
 }
 \section{Slots}{
 
 \describe{
 \item{\code{tool_name}}{Character. Tool name from YAML (e.g., "samtools", "hisat2").}
 
-\item{\code{version}}{Character. Tool version (e.g., "1.22", "dev").}
+\item{\code{versions}}{Character. All available versions (e.g., c("1.19.2", "1.22", "dev")).}
+
+\item{\code{default_version}}{Character. Default version to use if not specified.}
 
 \item{\code{description}}{Character. Tool description.}
 
@@ -24,8 +26,6 @@ commands, and parameters.
 
 \item{\code{commands}}{List. Available commands/subcommands for this tool.}
 
-\item{\code{installed}}{Logical. Whether the tool is currently installed.}
-
-\item{\code{install_date}}{POSIXct. When the tool was installed.}
+\item{\code{install_dates}}{List. Installation dates for each version (named list).}
 }}
 

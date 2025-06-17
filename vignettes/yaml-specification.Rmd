@@ -1,0 +1,517 @@
+---
+title: "YAML Tool Specification"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{YAML Tool Specification}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# YAML Tool Specification
+
+This document describes how to create custom tool definitions for ShennongTools using YAML configuration files.
+
+## Overview
+
+ShennongTools uses structured YAML files to define bioinformatics tools and their commands. This approach enables:
+
+- **Standardized tool interfaces**: Consistent parameter handling across all tools
+- **Automatic environment management**: Conda dependencies specified in YAML
+- **Template-based execution**: Flexible shell and Python script templates
+- **Built-in validation**: Parameter types and requirements enforced automatically
+- **Easy extensibility**: Add new tools by creating YAML files
+
+## Basic Structure
+
+A tool YAML file contains these top-level sections:
+
+```yaml
+tool_name: string          # Unique tool identifier
+description: string        # Short summary of the tool
+citation: string           # DOI or citation information
+
+environment:               # Conda environment specification
+  channels: [channel1, ...]
+  dependencies:
+    - pkg=version
+    - pip:
+        - pip_pkg
+
+commands:                  # Individual tool commands
+  command_name:
+    # Command specification
+```
+
+## Required Fields
+
+### tool_name
+
+The unique identifier for the tool (e.g., `samtools`, `hisat2`).
+
+```yaml
+tool_name: samtools
+```
+
+### description
+
+A brief description of what the tool does.
+
+```yaml
+description: "Reading/writing/editing/manipulating SAM/BAM files"
+```
+
+### commands
+
+Each tool must define at least one command. Each command requires:
+
+#### binary (Required)
+
+The exact executable name that will be called.
+
+```yaml
+commands:
+  view:
+    binary: samtools  # Will call 'samtools' executable
+```
+
+#### help_flag (Required)
+
+The help flag for the command to display usage information.
+
+```yaml
+commands:
+  view:
+    binary: samtools
+    help_flag: "view --help"  # or "-h", "help", or "" if no help
+```
+
+## Environment Specification
+
+Define conda environment dependencies:
+
+```yaml
+environment:
+  channels:
+    - bioconda
+    - conda-forge
+    - defaults
+  dependencies:
+    - samtools=1.19.2
+    - htslib=1.19.2
+    - pip:
+        - pysam>=0.21.0
+```
+
+### Channel Priority
+
+Channels are searched in the order listed. Common bioinformatics channels:
+- **bioconda**: Primary source for bioinformatics tools
+- **conda-forge**: Community-maintained packages
+- **defaults**: Anaconda's default channel
+
+## Command Definition
+
+Each command represents a callable unit within a tool:
+
+```yaml
+commands:
+  view:
+    description: "Extract alignments in SAM or BAM format"
+    binary: samtools
+    help_flag: "view --help"
+    
+    inputs:
+      input:
+        datatype: [bam, sam, cram]
+        required: true
+        description: "Input alignment file"
+    
+    outputs:
+      output:
+        datatype: [bam, sam]
+        required: false
+        description: "Output file (stdout if not specified)"
+    
+    params:
+      flags:
+        datatype: string
+        default: ""
+        description: "Additional samtools view flags"
+      threads:
+        datatype: integer
+        default: 1
+        description: "Number of threads"
+    
+    shell: >
+      {{ binary }} view {{ flags }}
+      {% if threads > 1 %}-@ {{ threads }}{% endif %}
+      {{ input }}
+      {% if output %} -o {{ output }}{% endif %}
+```
+
+## Parameter Types
+
+### inputs
+
+Input files required by the command:
+
+```yaml
+inputs:
+  reads1:
+    datatype: fastq
+    required: true
+    description: "Forward reads"
+  reads2:
+    datatype: fastq 
+    required: false
+    description: "Reverse reads (for paired-end)"
+```
+
+### outputs
+
+Output files produced by the command:
+
+```yaml
+outputs:
+  alignment:
+    datatype: bam
+    required: true
+    description: "Output alignment file"
+  summary:
+    datatype: txt
+    required: false
+    description: "Alignment summary statistics"
+```
+
+### params
+
+Additional parameters and options:
+
+```yaml
+params:
+  quality_threshold:
+    datatype: integer
+    default: 20
+    description: "Minimum mapping quality"
+  
+  enable_splicing:
+    datatype: boolean
+    default: true
+    description: "Allow spliced alignments"
+  
+  similarity:
+    datatype: numeric
+    default: 0.95
+    description: "Similarity threshold"
+  
+  sample_name:
+    datatype: string
+    default: "sample"
+    description: "Sample identifier"
+```
+
+## Datatype System
+
+ShennongTools uses a unified datatype system for validation and example generation.
+
+### Global Datatypes
+
+Defined in `inst/config/datatypes.yaml`:
+
+```yaml
+file_types:
+  fastq:
+    description: "FASTQ sequence files"
+    extensions: [".fastq", ".fq", ".fastq.gz", ".fq.gz"]
+    example_value: "reads.fastq.gz"
+  
+  bam:
+    description: "Binary Alignment Map files"  
+    extensions: [".bam"]
+    example_value: "alignment.bam"
+
+value_types:
+  integer:
+    description: "Integer numbers"
+    example_value: 10
+  
+  string:
+    description: "Text strings"
+    example_value: "sample_name"
+```
+
+### Tool-specific Datatypes
+
+Tools can extend global datatypes by creating `datatypes.yaml` in their directory:
+
+```yaml
+# inst/tools/star/datatypes.yaml
+file_types:
+  star_index:
+    description: "STAR genome index directory"
+    extensions: ["/"]
+    example_value: "star_genome_index"
+```
+
+## Template System
+
+ShennongTools uses the Jinjar templating engine for command generation.
+
+### Shell Templates
+
+Most commands use shell templates:
+
+```yaml
+shell: >
+  {{ binary }} align
+  -x {{ index }}
+  {% if read2 %}-1 {{ read1 }} -2 {{ read2 }}{% else %}-U {{ read1 }}{% endif %}
+  -p {{ threads }}
+  {% if output_dir %}--output-dir {{ output_dir }}{% endif %}
+  {{ extras }}
+```
+
+### Python Templates
+
+For Python-based tools:
+
+```yaml
+python: |
+  import scanpy as sc
+  import pandas as pd
+  
+  # Load data
+  adata = sc.read_h5ad("{{ input }}")
+  
+  # Preprocessing
+  sc.pp.filter_cells(adata, min_genes={{ min_genes }})
+  sc.pp.filter_genes(adata, min_cells={{ min_cells }})
+  
+  # Save results
+  adata.write("{{ output }}")
+```
+
+## Template Rules
+
+### 1. YAML Syntax
+
+Always use YAML folded scalar syntax (`>`) for multi-line commands:
+
+```yaml
+# ✅ Correct
+shell: >
+  {{ binary }} --input {{ input }}
+  --output {{ output }}
+  --threads {{ threads }}
+
+# ❌ Incorrect - don't use backslash continuation
+shell: |
+  {{ binary }} --input {{ input }} \
+    --output {{ output }} \
+    --threads {{ threads }}
+```
+
+### 2. Conditional Logic
+
+Use Jinjar conditional syntax for optional parameters:
+
+```yaml
+# ✅ Correct - simple existence check
+shell: >
+  {{ binary }} {{ input }}
+  {% if output %} -o {{ output }}{% endif %}
+  {% if threads > 1 %} -@ {{ threads }}{% endif %}
+
+# ❌ Incorrect - unnecessary complexity
+shell: >
+  {{ binary }} {{ input }}
+  {% if output and output != "" %} -o {{ output }}{% endif %}
+```
+
+### 3. Parameter Handling
+
+Optional parameters are automatically set to `NULL` when not provided:
+
+```yaml
+shell: >
+  {{ binary }} -i {{ input }}
+  {% if input2 %} -I {{ input2 }}{% endif %}  # Only included if input2 provided
+  -o {{ output }}
+```
+
+### 4. Standard Parameters
+
+#### threads Parameter
+
+Always use `threads` for parallelization:
+
+```yaml
+params:
+  threads:
+    datatype: integer
+    default: 4
+    description: "Number of threads to use"
+
+shell: >
+  {{ binary }} --num_workers {{ threads }} {{ input }} {{ output }}
+```
+
+#### extras Parameter
+
+Include `extras` for additional user arguments:
+
+```yaml
+params:
+  extras:
+    datatype: string
+    default: ""
+    description: "Additional arguments to pass to the tool"
+
+shell: >
+  {{ binary }} {{ input }} {{ output }} {{ extras }}
+```
+
+## Complete Example
+
+Here's a complete YAML file for a hypothetical alignment tool:
+
+```yaml
+tool_name: myaligner
+description: "Fast sequence alignment tool"
+citation: "doi:10.1000/example"
+
+environment:
+  channels:
+    - bioconda
+    - conda-forge
+  dependencies:
+    - myaligner=2.1.0
+    - samtools=1.19.2
+
+commands:
+  build_index:
+    description: "Build alignment index from reference"
+    binary: myaligner-build
+    help_flag: "--help"
+    
+    inputs:
+      reference:
+        datatype: fasta
+        required: true
+        description: "Reference genome FASTA file"
+    
+    outputs:
+      index:
+        datatype: string
+        required: true
+        description: "Index name prefix"
+    
+    params:
+      threads:
+        datatype: integer
+        default: 4
+        description: "Number of threads"
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional build arguments"
+    
+    shell: >
+      {{ binary }} {{ reference }} {{ index }}
+      -t {{ threads }} {{ extras }}
+
+  align:
+    description: "Align reads to reference"
+    binary: myaligner
+    help_flag: "--help"
+    
+    inputs:
+      index:
+        datatype: string
+        required: true
+        description: "Index name prefix"
+      read1:
+        datatype: fastq
+        required: true
+        description: "Forward reads"
+      read2:
+        datatype: fastq
+        required: false
+        description: "Reverse reads"
+    
+    outputs:
+      output:
+        datatype: sam
+        required: true
+        description: "Output alignment file"
+    
+    params:
+      threads:
+        datatype: integer
+        default: 4
+        description: "Number of threads"
+      sensitivity:
+        datatype: string
+        default: "sensitive"
+        description: "Alignment sensitivity (fast|sensitive|very-sensitive)"
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional alignment arguments"
+    
+    shell: >
+      {{ binary }} -x {{ index }}
+      {% if read2 %}-1 {{ read1 }} -2 {{ read2 }}{% else %}-U {{ read1 }}{% endif %}
+      -S {{ output }} -p {{ threads }}
+      --{{ sensitivity }} {{ extras }}
+```
+
+## Testing Your YAML
+
+Before using a custom tool, test the YAML configuration:
+
+```{r test}
+library(ShennongTools)
+
+# Test template rendering
+template <- "{{ binary }} -i {{ input }} -o {{ output }} -t {{ threads }}"
+params <- list(
+  binary = "mytool",
+  input = "test.fastq",
+  output = "result.bam",
+  threads = 4
+)
+
+rendered <- sn_test_template(template, params)
+print(rendered)
+# Output: mytool -i test.fastq -o result.bam -t 4
+```
+
+## Best Practices
+
+1. **Use descriptive parameter names**: `input1`/`input2` instead of `in1`/`in2`
+2. **Provide sensible defaults**: Users shouldn't need to specify every parameter
+3. **Include comprehensive descriptions**: Help users understand each parameter
+4. **Follow datatype conventions**: Use standard datatypes when possible
+5. **Test templates thoroughly**: Use `sn_test_template()` to verify rendering
+6. **Keep templates readable**: Use proper indentation and spacing
+7. **Handle optional parameters gracefully**: Use conditional logic appropriately
+
+## Contributing Tool Definitions
+
+To contribute a new tool to ShennongTools:
+
+1. Create a YAML file following this specification
+2. Test thoroughly with representative data
+3. Submit a pull request to the GitHub repository
+4. Include example usage in the pull request description
+
+Your contribution will help expand the ShennongTools ecosystem for the entire bioinformatics community! 

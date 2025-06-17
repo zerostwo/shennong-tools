@@ -1,0 +1,113 @@
+tool_name: salmon
+description: A tool for transcript-level quantification from RNA-seq data using quasi-mapping
+citation: 10.1038/nmeth.4197
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - salmon
+
+commands:
+
+  index:
+    description: Build a Salmon transcriptome index
+    binary: salmon
+    help_flag: index --help
+
+    inputs:
+      transcriptome:
+        datatype: fasta
+        required: true
+        description: Transcriptome FASTA file
+
+    outputs:
+      index_dir:
+        datatype: directory
+        required: true
+        description: Output directory to store the index
+
+    params:
+      type:
+        datatype: string
+        default: "quasi"
+        description: Type of index to build (quasi or fmd)
+      kmer:
+        datatype: integer
+        default: 31
+        description: K-mer size
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads
+      extras:
+        datatype: string
+        default: ""
+        description: Extra options
+    shell: >
+      {{ binary }} index
+      -t {{ transcriptome }}
+      -i {{ index_dir }}
+      -k {{ kmer }}
+      --type {{ type }}
+      --threads {{ threads }}
+      {{ extras }}
+
+  quant:
+    description: Quantify transcript abundances using a Salmon index
+    binary: salmon
+    help_flag: quant --help
+
+    inputs:
+      index_dir:
+        datatype: directory
+        required: true
+        description: Path to Salmon index directory
+      read1:
+        datatype: fastq
+        required: true
+        description: Read 1 FASTQ file
+      read2:
+        datatype: fastq
+        required: false
+        description: Read 2 FASTQ file (for paired-end)
+
+    outputs:
+      quant_dir:
+        datatype: directory
+        required: true
+        description: Output directory for quantification results
+
+    params:
+      libtype:
+        datatype: string
+        default: "A"
+        description: Library type (e.g., A = auto-detect)
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads
+      validate_mappings:
+        datatype: boolean
+        default: true
+        description: Enable stricter mapping validation
+      gc_bias:
+        datatype: boolean
+        default: false
+        description: Perform GC bias correction
+      extras:
+        datatype: string
+        default: ""
+        description: Additional arguments
+    shell: >
+      {{ binary }} quant
+      -i {{ index_dir }}
+      -l {{ libtype }}
+      -1 {{ read1 }}
+      {% if read2 %}-2 {{ read2 }}{% endif %}
+      -o {{ quant_dir }}
+      --threads {{ threads }}
+      {% if validate_mappings %} --validateMappings{% endif %}
+      {% if gc_bias %} --gcBias{% endif %}
+      {{ extras }}

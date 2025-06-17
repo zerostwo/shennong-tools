@@ -1,0 +1,110 @@
+---
+title: "Fastp"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Fastp}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Fastp
+
+Fast all-in-one preprocessing for FastQ files
+
+## Citation
+
+**Citation:** 10.1093/bioinformatics/bty560
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- fastp
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("fastp", "trim", ...)
+```
+
+## Available Commands
+
+### trim
+
+Trim and filter reads in FASTQ files
+
+**Basic Usage:**
+
+```r
+result <- sn_run("fastp", "trim",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Trim Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("fastp", "trim",
+  input1 = "sample_R1.fastq.gz",
+  output1 = "output_file.txt",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### trim Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input1` | fastq | Yes | First input FASTQ file (R1) |
+| `input2` | fastq | No | Second input FASTQ file (R2, optional) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output1` | fastq | Yes | First output FASTQ file (R1) |
+| `output2` | fastq | No | Second output FASTQ file (R2) |
+| `html_report` | html | No | HTML quality control report |
+| `json_report` | json | No | JSON quality control report |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 4 | Number of threads to use |
+| `extras` | string | "" | Additional arguments to pass to fastp |
+

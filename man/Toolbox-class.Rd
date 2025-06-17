@@ -6,21 +6,16 @@
 \title{Toolbox S4 Class}
 \description{
 Manages a collection of bioinformatics tools with version control.
-The tools slot contains a nested list structure:
+The tools slot contains a simplified structure where each tool manages its own versions:
 tools = list(
-  tool1 = list(
-    version1 = Tool_object,
-    version2 = Tool_object
-  ),
-  tool2 = list(
-    version1 = Tool_object
-  )
+  tool1 = Tool_object,  # Tool object manages multiple versions internally
+  tool2 = Tool_object
 )
 }
 \section{Slots}{
 
 \describe{
-\item{\code{tools}}{List. Nested list of Tool objects organized by tool name and version.}
+\item{\code{tools}}{List. List of Tool objects organized by tool name.}
 
 \item{\code{base_dir}}{Character. Base directory for tool installations.}
 

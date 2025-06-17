@@ -1,0 +1,106 @@
+---
+title: "Multiqc"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Multiqc}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Multiqc
+
+Aggregate results from bioinformatics analyses into a single report
+
+## Citation
+
+**Citation:** 10.1093/bioinformatics/btw354
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- multiqc
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("multiqc", "run", ...)
+```
+
+## Available Commands
+
+### run
+
+Run MultiQC on the specified input directory to generate a summary report
+
+**Basic Usage:**
+
+```r
+result <- sn_run("multiqc", "run",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Run Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("multiqc", "run",
+  input_dir = "input_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### run Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input_dir` | directory | Yes | Directory containing result files (e.g., from FastQC, STAR, etc.) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output_dir` | directory | No | Output directory for the MultiQC report |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `output_name` | string | "multiqc_report.html" | Custom name for the output HTML report |
+| `force` | boolean | TRUE | Overwrite output directory if it exists |
+| `modules` | string | "" | Comma-separated list of specific modules to run (optional) |
+| `extras` | string | "" | Additional command-line arguments to pass to MultiQC |
+

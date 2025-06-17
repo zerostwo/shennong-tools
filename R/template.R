@@ -11,6 +11,8 @@
 #' @param show_messages Logical. Whether to show template rendering messages.
 #'
 #' @return Character. Rendered command string.
+#' @family template system
+#' @concept template system
 #' @export
 #'
 #' @examples
@@ -85,6 +87,11 @@ sn_render_template <- function(template, params, inputs = list(), outputs = list
 .prepare_template_params <- function(params, inputs, outputs, command_config) {
   final_params <- list()
 
+  # Add binary parameter if present in command config
+  if (!is.null(command_config$binary)) {
+    final_params$binary <- command_config$binary
+  }
+
   # Initialize all inputs with defaults or NULL
   for (input_name in names(inputs)) {
     input_def <- inputs[[input_name]]
@@ -110,7 +117,14 @@ sn_render_template <- function(template, params, inputs = list(), outputs = list
   # Add empty values for all outputs to ensure they exist in template context
   for (output_name in names(outputs)) {
     if (!output_name %in% names(final_params)) {
-      final_params[[output_name]] <- ""
+      output_def <- outputs[[output_name]]
+      required <- output_def$required %||% FALSE
+      if (required) {
+        final_params[[output_name]] <- ""
+      } else {
+        # For optional outputs, use NULL so jinjar conditions work correctly
+        final_params[output_name] <- list(NULL)
+      }
     }
   }
 
@@ -128,7 +142,22 @@ sn_render_template <- function(template, params, inputs = list(), outputs = list
         final_params[[param_name]] <- value
       }
     } else {
-      final_params[[param_name]] <- value
+      # For parameters (non-inputs), treat empty string as NULL so that
+      # `{% if param %}` blocks evaluate to FALSE unless user provides a value.
+      if (is.character(value) && length(value) == 1 && nzchar(value) == FALSE) {
+        final_params[param_name] <- list(NULL)
+      } else {
+        final_params[[param_name]] <- value
+      }
+    }
+  }
+
+  # After merging defaults and overrides, ensure empty-string defaults for parameters
+  # (those not supplied by user) are converted to NULL as well.
+  for (param_name in names(final_params)) {
+    val <- final_params[[param_name]]
+    if (is.character(val) && length(val) == 1 && nzchar(val) == FALSE) {
+      final_params[param_name] <- list(NULL)
     }
   }
 
@@ -222,6 +251,11 @@ sn_render_template <- function(template, params, inputs = list(), outputs = list
     "logical" = as.logical(value),
     "string" = as.character(value),
     "flag" = if (as.logical(value)) value else "",
+    # For common file datatypes, collapse multiple paths into a single space-separated string
+    "fastq" = if (is.character(value) && length(value) > 1) paste(value, collapse = " ") else value,
+    "bam" = if (is.character(value) && length(value) > 1) paste(value, collapse = " ") else value,
+    "sam" = if (is.character(value) && length(value) > 1) paste(value, collapse = " ") else value,
+    "file" = if (is.character(value) && length(value) > 1) paste(value, collapse = " ") else value,
     value # Default: return as-is
   )
 }
@@ -237,6 +271,36 @@ sn_render_template <- function(template, params, inputs = list(), outputs = list
 #' @return NULL (throws error if validation fails)
 #' @keywords internal
 .validate_template_params <- function(params, inputs, outputs) {
+  # Helper to determine if a value is empty/invalid
+  is_empty <- function(x) {
+    if (is.null(x)) {
+      return(TRUE)
+    }
+
+    if (is.atomic(x)) {
+      # Length-0 vector
+      if (length(x) == 0) {
+        return(TRUE)
+      }
+
+      # All NA
+      if (all(is.na(x))) {
+        return(TRUE)
+      }
+
+      # Character vectors: all empty strings?
+      if (is.character(x) && all(nzchar(x) == FALSE)) {
+        return(TRUE)
+      }
+
+      # Otherwise not empty
+      return(FALSE)
+    }
+
+    # For non-atomic objects keep previous behaviour (not empty)
+    FALSE
+  }
+
   # Check required inputs
   for (input_name in names(inputs)) {
     input_def <- inputs[[input_name]]
@@ -248,7 +312,7 @@ sn_render_template <- function(template, params, inputs = list(), outputs = list
       }
 
       value <- params[[input_name]]
-      if (is.null(value) || (is.character(value) && value == "") || is.na(value)) {
+      if (is_empty(value)) {
         cli_abort("Required input '{input_name}' cannot be empty or NULL")
       }
     }
@@ -265,7 +329,7 @@ sn_render_template <- function(template, params, inputs = list(), outputs = list
       }
 
       value <- params[[output_name]]
-      if (is.null(value) || (is.character(value) && value == "") || is.na(value)) {
+      if (is_empty(value)) {
         cli_abort("Required output '{output_name}' cannot be empty or NULL")
       }
     }
@@ -285,6 +349,8 @@ sn_render_template <- function(template, params, inputs = list(), outputs = list
 #' @param show_messages Logical. Whether to show template rendering messages.
 #'
 #' @return Character. Rendered Python code.
+#' @family template system
+#' @concept template system
 #' @export
 #'
 #' @examples
@@ -357,6 +423,8 @@ sn_render_python_template <- function(python_template, params, inputs = list(), 
 #' @param test_params List. Test parameters.
 #'
 #' @return Character. Rendered result or error message.
+#' @family template system
+#' @concept template system
 #' @export
 #'
 #' @examples

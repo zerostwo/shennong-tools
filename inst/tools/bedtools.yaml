@@ -1,0 +1,119 @@
+tool_name: bedtools
+description: A powerful toolset for genome arithmetic.
+citation: 10.1093/bioinformatics/btq033
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - bedtools
+
+commands:
+  intersect:
+    description: Intersect two sets of genomic features.
+    binary: bedtools
+    help_flag: intersect -h
+    inputs:
+      a:
+        datatype: bed
+        required: true
+        description: First input BED file
+      b:
+        datatype: bed
+        required: true
+        description: Second input BED file
+    outputs:
+      output:
+        datatype: bed
+        required: true
+        description: Output BED file with intersections
+    params:
+      threads:
+        datatype: integer
+        default: 1
+        description: Number of threads to use (not applicable, but included for consistency)
+      extras:
+        datatype: string
+        default: ""
+        description: Extra parameters to pass to bedtools
+    shell: >
+      {{ binary }} intersect -a {{ a }} -b {{ b }} {{ extras }} > {{ output }}
+
+  merge:
+    description: Merge overlapping BED intervals.
+    binary: bedtools
+    help_flag: merge -h
+    inputs:
+      input:
+        datatype: bed
+        required: true
+        description: Input BED file
+    outputs:
+      output:
+        datatype: bed
+        required: true
+        description: Output merged BED file
+    params:
+      extras:
+        datatype: string
+        default: ""
+        description: Extra parameters to pass to bedtools
+    shell: >
+      {{ binary }} merge -i {{ input }} {{ extras }} > {{ output }}
+
+  sort:
+    description: Sort a BED file by chromosomal coordinates.
+    binary: bedtools
+    help_flag: sort -h
+    inputs:
+      input:
+        datatype: bed
+        required: true
+        description: Input BED file
+    outputs:
+      output:
+        datatype: bed
+        required: true
+        description: Sorted BED file
+    params:
+      faidx:
+        datatype: string
+        default: ""
+        description: Optional genome file for sorting order
+      extras:
+        datatype: string
+        default: ""
+        description: Extra parameters
+    shell: >
+      {{ binary }} sort -i {{ input }} {% if faidx %}-g {{ faidx }}{% endif %} {{ extras }} > {{ output }}
+
+  genomecov:
+    description: Generate genome-wide coverage reports.
+    binary: bedtools
+    help_flag: genomecov -h
+    inputs:
+      input:
+        datatype: bed
+        required: true
+        description: Input BED file
+    outputs:
+      output:
+        datatype: bed
+        required: true
+        description: Output coverage file
+    params:
+      genome:
+        datatype: string
+        default: ""
+        description: Path to genome file with chromosome sizes
+      bga:
+        datatype: boolean
+        default: false
+        description: Report coverage as BedGraph (BGA)
+      extras:
+        datatype: string
+        default: ""
+        description: Extra parameters
+    shell: >
+      {{ binary }} genomecov -i {{ input }} {% if genome %}-g {{ genome }}{% endif %} {% if bga %}-bga{% endif %} {{ extras }} > {{ output }}

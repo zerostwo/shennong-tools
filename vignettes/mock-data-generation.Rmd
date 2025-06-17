@@ -1,0 +1,293 @@
+---
+title: "Mock Data Generation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Mock Data Generation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+```{r setup}
+library(ShennongTools)
+```
+
+# 模拟数据生成
+
+ShennongTools 提供了强大的模拟数据生成功能，可以根据 `datatypes.yaml` 中定义的文件类型创建真实的生物信息学测试数据。这个功能的主要优势是：
+
+- **减少包体积**：无需在包中包含大量真实数据文件
+- **灵活性**：用户可以根据需要生成不同大小和类型的数据
+- **一致性**：基于统一的数据类型系统，确保格式正确
+- **可重现性**：使用固定种子确保生成的数据可重现
+- **真实性**：包含错误率、adapter序列和非对齐reads，更接近真实数据
+
+## 支持的数据类型
+
+模拟数据生成功能支持所有在 `datatypes.yaml` 中定义的文件类型：
+
+**序列文件：**
+- `fasta`: 核酸或蛋白质序列
+- `fastq`: 带质量分数、adapter序列和真实错误率的原始测序数据
+
+**比对文件：**
+- `sam`: 序列比对（文本格式）
+- `bam`: 二进制比对格式（注意：生成的是文本SAM格式）
+
+**注释文件：**
+- `gtf`: GTF格式的基因注释（现包含更多基因）
+- `gff`: GFF格式的基因注释
+- `bed`: BED格式的基因组区间
+
+**变异文件：**
+- `vcf`: VCF格式的变异调用
+
+**数据表格：**
+- `csv`, `tsv`, `txt`: 表格数据文件
+- `json`: JSON结构化数据
+- `yaml`: YAML配置文件
+- `mtx`: Matrix Market格式（稀疏矩阵）
+
+## 基本用法
+
+### 单个文件生成
+
+```{r basic_usage}
+# 生成基本的FASTA文件
+sn_generate_mockdata("fasta", "test_genome.fa")
+
+# 生成指定记录数的压缩FASTQ文件（默认压缩）
+sn_generate_mockdata("fastq", "test_reads.fastq.gz", n_records = 1000)
+
+# 生成不同大小的文件
+sn_generate_mockdata("gtf", "annotation.gtf", size = "medium")
+```
+
+### 批量生成
+
+对于需要多个文件的工作流，可以使用批量生成功能：
+
+```{r batch_generation}
+# 定义要生成的文件规格
+spec <- list(
+  list(datatype = "fasta", output_file = "reference.fa", size = "small"),
+  list(
+    datatype = "fastq", output_file = "reads_R1.fastq.gz",
+    options = list(read_type = "R1"), size = "medium"
+  ),
+  list(
+    datatype = "fastq", output_file = "reads_R2.fastq.gz",
+    options = list(read_type = "R2"), size = "medium"
+  ),
+  list(datatype = "gtf", output_file = "annotation.gtf", size = "medium"),
+  list(datatype = "bed", output_file = "regions.bed", size = "small")
+)
+
+# 批量生成到指定目录
+sn_generate_mockdata_batch(spec, base_dir = "test_dataset/")
+```
+
+## 高级选项
+
+### 自定义选项
+
+每种数据类型都支持特定的自定义选项：
+
+```{r custom_options}
+# 生成蛋白质序列
+sn_generate_mockdata("fasta", "proteins.fa",
+  options = list(
+    sequence_type = "protein",
+    min_length = 100,
+    max_length = 300
+  ),
+  n_records = 50
+)
+
+# 生成带自定义错误率和adapter的FASTQ reads
+sn_generate_mockdata("fastq", "realistic_reads.fastq.gz",
+  options = list(
+    read_length = 150,
+    error_rate = 0.02, # 2% 错误率
+    adapters = TRUE, # 包含adapter
+    non_aligned_rate = 0.15 # 15% 非对齐reads
+  ),
+  n_records = 10000
+)
+
+# 生成CSV数据表
+sn_generate_mockdata("csv", "expression_data.csv",
+  options = list(
+    columns = c("gene_id", "sample1", "sample2", "sample3", "condition")
+  ),
+  n_records = 5000
+)
+```
+
+### 大小类别
+
+使用预定义的大小类别快速生成不同规模的数据：
+
+```{r size_categories}
+# 最小（5条记录）- 适合快速测试
+sn_generate_mockdata("fasta", "tiny.fa", size = "minimal")
+
+# 小（100条记录）- 适合单元测试
+sn_generate_mockdata("fastq", "small.fastq.gz", size = "small")
+
+# 中等（1000条记录）- 适合功能测试
+sn_generate_mockdata("gtf", "medium.gtf", size = "medium")
+
+# 大（10000条记录）- 适合性能测试
+sn_generate_mockdata("vcf", "large.vcf", size = "large")
+```
+
+## 真实数据特性
+
+### FASTQ文件特性
+
+生成的FASTQ文件包含多种真实数据特性：
+
+- **错误率**：默认1.5%的测序错误率
+- **Adapter序列**：Illumina TruSeq adapter污染
+- **非对齐reads**：10%的完全随机序列
+- **质量分数**：位置相关的质量分数下降
+- **配对reads**：正确的R1/R2标识和反向互补
+
+```{r realistic_fastq}
+# 生成真实的配对reads
+r1 <- sn_generate_mockdata("fastq", "reads_R1.fastq.gz",
+  options = list(
+    read_type = "R1",
+    adapters = TRUE,
+    error_rate = 0.015
+  ),
+  n_records = 50000
+)
+
+r2 <- sn_generate_mockdata("fastq", "reads_R2.fastq.gz",
+  options = list(
+    read_type = "R2",
+    adapters = TRUE,
+    error_rate = 0.015
+  ),
+  n_records = 50000
+)
+```
+
+## 便捷RNA-seq数据集
+
+### 一键生成完整数据集
+
+```{r rnaseq_dataset}
+# 生成完整的RNA-seq测试数据集
+dataset <- sn_generate_rnaseq_dataset(
+  output_dir = "rnaseq_test/",
+  genome_size = "medium",
+  read_count = "large",
+  compress = TRUE # 默认启用压缩
+)
+
+# 数据集包含：
+# - reference.fa.gz: 参考基因组
+# - annotation.gtf.gz: 基因注释（更多基因）
+# - reads_R1.fastq.gz: 第一端reads（含adapter和错误）
+# - reads_R2.fastq.gz: 第二端reads（含adapter和错误）
+```
+
+## 实用工作流示例
+
+### 比对和定量流程测试
+
+```{r pipeline_workflow}
+# 为完整的RNA-seq流程生成测试数据
+pipeline_data <- list(
+  # 输入数据
+  list(datatype = "fasta", output_file = "input/reference.fa", size = "small"),
+  list(
+    datatype = "fastq", output_file = "input/reads_R1.fastq.gz",
+    options = list(read_type = "R1", adapters = TRUE), size = "medium"
+  ),
+  list(
+    datatype = "fastq", output_file = "input/reads_R2.fastq.gz",
+    options = list(read_type = "R2", adapters = TRUE), size = "medium"
+  ),
+  list(datatype = "gtf", output_file = "input/annotation.gtf", size = "small"),
+
+  # 预期输出格式
+  list(datatype = "sam", output_file = "expected/alignment.sam", size = "medium"),
+  list(datatype = "vcf", output_file = "expected/variants.vcf", size = "small"),
+  list(datatype = "csv", output_file = "expected/counts.csv", size = "small")
+)
+
+sn_generate_mockdata_batch(pipeline_data, "pipeline_test/")
+```
+
+## 技术细节
+
+### 数据格式规范
+
+生成的模拟数据严格遵循相应的文件格式规范：
+
+- **FASTA**: 包含序列头（`>`开头）和正确的行长度格式
+- **FASTQ**: 4行格式，包含序列ID、序列、分隔符和质量分数
+- **GTF**: 9列tab分隔，包含正确的属性字段，更多基因
+- **VCF**: 包含标准头部和变异记录
+- **SAM**: 包含头部信息和比对记录
+
+### 可重现性
+
+所有模拟数据生成都使用固定的随机种子（默认123），确保：
+
+- 相同参数生成相同的数据
+- 适合版本控制和测试
+- 便于错误重现和调试
+
+```{r reproducibility}
+# 使用自定义种子
+sn_generate_mockdata("fasta", "reproducible.fa", seed = 456)
+```
+
+### 性能考虑
+
+- **内存效率**: 逐行生成，不将所有数据加载到内存
+- **快速生成**: 优化的算法确保快速生成大文件
+- **磁盘友好**: 自动创建输出目录，支持深层目录结构
+- **压缩优化**: 自动压缩大文件，减少存储空间
+
+## 最佳实践
+
+1. **选择合适的大小**: 根据测试需求选择合适的数据大小
+2. **使用批量生成**: 对于多文件工作流，优先使用批量生成
+3. **启用压缩**: 对于大文件，特别是FASTQ，建议启用压缩
+4. **真实选项**: 使用真实的错误率和adapter设置进行准确测试
+5. **清理临时文件**: 定期清理不需要的临时模拟文件
+6. **文档化参数**: 在测试脚本中记录生成参数
+7. **版本控制**: 将生成规格（而非生成的文件）纳入版本控制
+
+## 集成现有工具
+
+模拟数据生成功能与ShennongTools的其他功能无缝集成：
+
+```{r integration}
+# 生成测试数据
+reads <- sn_generate_mockdata("fastq", "test_input.fastq.gz",
+  size = "small",
+  options = list(adapters = TRUE, error_rate = 0.02)
+)
+
+# 在工具中使用（现在会有真实的比对率！）
+# result <- sn_run("hisat2", "align",
+#                  index = index_file,
+#                  read1 = reads,
+#                  output = "alignment.bam")
+```
+
+这个升级的模拟数据生成系统为ShennongTools提供了一个更加真实和完整的测试数据解决方案，生成的数据更接近实际测序数据的特性，包含适当的错误率和污染，为工具测试提供更准确的基准。 

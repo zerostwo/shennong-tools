@@ -1,0 +1,73 @@
+tool_name: htseq
+description: "HTSeq: Analysing high-throughput sequencing data with Python"
+citation: "10.1093/bioinformatics/btu638"
+
+environment:
+  channels: 
+    - conda-forge
+    - bioconda
+  dependencies:
+    - htseq
+
+commands:
+  count:
+    description: "Count reads per gene using alignment and annotation"
+    binary: htseq-count
+    help_flag: "--help"
+
+    inputs:
+      alignment:
+        datatype: [bam, sam]
+        required: true
+        description: "Aligned reads in BAM or SAM format"
+      annotation:
+        datatype: gtf
+        required: true
+        description: "GTF/GFF file with gene annotations"
+
+    outputs:
+      counts:
+        datatype: tsv
+        required: true
+        description: "Tab-delimited output with read counts per gene"
+
+    params:
+      format:
+        datatype: string
+        default: "bam"
+        description: "Format of input file: bam or sam"
+      stranded:
+        datatype: string
+        default: "no"
+        description: "Strand specificity: yes, no, reverse"
+      feature_type:
+        datatype: string
+        default: "exon"
+        description: "Feature type to count (e.g., exon)"
+      id_attr:
+        datatype: string
+        default: "gene_id"
+        description: "GTF attribute to use as feature ID"
+      mode:
+        datatype: string
+        default: "union"
+        description: "Counting mode: union, intersection-strict, intersection-nonempty"
+      threads:
+        datatype: integer
+        default: 1
+        description: "Number of threads (note: htseq-count is single-threaded)"
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional parameters to pass to htseq-count"
+
+    shell: >
+      {{ binary }}
+      --format {{ format }}
+      --stranded {{ stranded }}
+      --type {{ feature_type }}
+      --idattr {{ id_attr }}
+      --mode {{ mode }}
+      {{ alignment }} {{ annotation }}
+      > {{ counts }}
+      {{ extras }}

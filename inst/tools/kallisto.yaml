@@ -1,0 +1,102 @@
+tool_name: kallisto
+description: Quantification of transcript abundances from RNA-Seq data
+citation: 10.1038/nbt.3519
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - kallisto
+
+commands:
+  index:
+    description: Build a kallisto index from a transcriptome FASTA file
+    binary: kallisto
+    help_flag: --help
+
+    inputs:
+      transcriptome:
+        datatype: fasta
+        required: true
+        description: Transcriptome reference in FASTA format
+
+    outputs:
+      index:
+        datatype: index
+        required: true
+        description: Output index file for kallisto quant
+
+    params:
+      k:
+        datatype: integer
+        default: 31
+        description: k-mer size (default is 31)
+      extras:
+        datatype: string
+        default: ""
+        description: Additional parameters for kallisto index
+
+    shell: >
+      {{ binary }} index -i {{ index }} -k {{ k }} {{ transcriptome }} {{ extras }}
+
+  quant:
+    description: Quantify transcript abundance from RNA-Seq reads using a kallisto index
+    binary: kallisto
+    help_flag: --help
+
+    inputs:
+      index:
+        datatype: index
+        required: true
+        description: Path to kallisto index
+      read1:
+        datatype: fastq
+        required: true
+        description: FASTQ file with first reads
+      read2:
+        datatype: fastq
+        required: false
+        description: FASTQ file with second reads (for paired-end)
+
+    outputs:
+      output_dir:
+        datatype: directory
+        required: true
+        description: Output directory containing abundance.tsv and other results
+
+    params:
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads
+      bootstrap_samples:
+        datatype: integer
+        default: 0
+        description: Number of bootstrap samples to compute
+      single:
+        datatype: boolean
+        default: false
+        description: Whether reads are single-end
+      fragment_length:
+        datatype: integer
+        default: 200
+        description: Fragment length for single-end reads
+      sd:
+        datatype: numeric
+        default: 20.0
+        description: Standard deviation of fragment length for single-end reads
+      extras:
+        datatype: string
+        default: ""
+        description: Additional parameters for kallisto quant
+
+    shell: >
+      {{ binary }} quant -i {{ index }} -o {{ output_dir }} -t {{ threads }}
+      {% if bootstrap_samples > 0 %} -b {{ bootstrap_samples }}{% endif %}
+      {% if single %}
+        --single -l {{ fragment_length }} -s {{ sd }} {{ read1 }}
+      {% else %}
+        {{ read1 }} {% if read2 %} {{ read2 }}{% endif %}
+      {% endif %}
+      {{ extras }}

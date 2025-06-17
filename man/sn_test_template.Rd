@@ -25,3 +25,9 @@ test_params <- list(threads = 4, input = "test.bam")
 result <- sn_test_template(template, test_params)
 }
 }
+\seealso{
+Other template system: 
+\code{\link{sn_render_python_template}()},
+\code{\link{sn_render_template}()}
+}
+\concept{template system}

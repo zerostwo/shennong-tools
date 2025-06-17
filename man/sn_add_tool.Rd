@@ -42,3 +42,21 @@ toolbox <- sn_add_tool(toolbox, tool_name = "samtools", version = "1.22")
 toolbox <- sn_add_tool(toolbox, yaml = "my_tool.yaml")
 }
 }
+\seealso{
+Other tool management: 
+\code{\link{.validate_tool_legacy}()},
+\code{\link{default_toolbox}},
+\code{\link{sn_check_user_toolbox}()},
+\code{\link{sn_diagnose_tool}()},
+\code{\link{sn_get_toolbox_info}()},
+\code{\link{sn_initialize_toolbox}()},
+\code{\link{sn_install_micromamba}()},
+\code{\link{sn_install_tool}()},
+\code{\link{sn_load_toolbox}()},
+\code{\link{sn_remove_tool}()},
+\code{\link{sn_reset_to_default}()},
+\code{\link{sn_reset_toolbox}()},
+\code{\link{sn_save_toolbox}()},
+\code{\link{sn_validate_tool}()}
+}
+\concept{tool management}

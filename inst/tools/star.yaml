@@ -1,0 +1,175 @@
+tool_name: star
+description: Spliced Transcripts Alignment to a Reference (STAR)
+citation: 10.1093/bioinformatics/bts635
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - star
+
+commands:
+  index:
+    description: Generate genome index for STAR
+    binary: STAR
+    help_flag: --help
+
+    inputs:
+      fasta:
+        datatype: fasta
+        required: true
+        description: Reference genome in FASTA format
+      gtf:
+        datatype: gtf
+        required: false
+        description: Gene annotation in GTF format
+
+    outputs:
+      genome_dir:
+        datatype: directory
+        required: true
+        description: Output directory for STAR genome index
+
+    params:
+      threads:
+        datatype: integer
+        default: 8
+        description: Number of threads to use
+      sjdbOverhang:
+        datatype: integer
+        default: 100
+        description: Read length - 1 for spliced junction detection
+      extras:
+        datatype: string
+        default: ""
+        description: Additional STAR arguments
+
+    shell: >
+      {{ binary }}
+      --runMode genomeGenerate
+      --runThreadN {{ threads }}
+      --genomeDir {{ genome_dir }}
+      --genomeFastaFiles {{ fasta }}
+      {% if gtf %}--sjdbGTFfile {{ gtf }}{% endif %}
+      --sjdbOverhang {{ sjdbOverhang }}
+      {{ extras }}
+
+  align:
+    description: Align RNA-seq reads to the reference genome using STAR
+    binary: STAR
+    help_flag: --help
+
+    inputs:
+      genome_dir:
+        datatype: directory
+        required: true
+        description: STAR genome index directory
+      read1:
+        datatype: fastq
+        required: true
+        description: First read FASTQ file
+      read2:
+        datatype: fastq
+        required: false
+        description: Second read FASTQ file (optional for single-end)
+
+    outputs:
+      bam:
+        datatype: bam
+        required: true
+        description: Output BAM file
+
+    params:
+      threads:
+        datatype: integer
+        default: 8
+        description: Number of threads
+      output_prefix:
+        datatype: string
+        default: "star_"
+        description: Prefix for output files
+      outSAMtype:
+        datatype: string
+        default: "BAM SortedByCoordinate"
+        description: BAM output type
+      extras:
+        datatype: string
+        default: ""
+        description: Extra STAR options
+
+    shell: >
+      {{ binary }}
+      --runThreadN {{ threads }}
+      --genomeDir {{ genome_dir }}
+      --readFilesIn {{ read1 }} {% if read2 %}{{ read2 }}{% endif %}
+      --outFileNamePrefix {{ output_prefix }}
+      --outSAMtype {{ outSAMtype }}
+      {{ extras }}
+
+  solo:
+    description: Perform single-cell RNA-seq alignment and quantification using STARsolo
+    binary: STAR
+    help_flag: --help
+
+    inputs:
+      genome_dir:
+        datatype: directory
+        required: true
+        description: STAR genome index directory
+      read1:
+        datatype: fastq
+        required: true
+        description: Read 1 FASTQ file (usually cell barcode + UMI)
+      read2:
+        datatype: fastq
+        required: true
+        description: Read 2 FASTQ file (RNA read)
+      whitelist:
+        datatype: txt
+        required: false
+        description: Cell barcode whitelist (e.g. 10x barcodes)
+
+    outputs:
+      solo_output:
+        datatype: directory
+        required: true
+        description: Output directory for STARsolo quantification results
+
+    params:
+      threads:
+        datatype: integer
+        default: 8
+        description: Number of threads
+      solo_type:
+        datatype: string
+        default: CB_UMI_Simple
+        description: Type of single-cell protocol
+      solo_features:
+        datatype: string
+        default: Gene
+        description: Features to quantify (e.g., Gene, GeneFull, SJ)
+      solo_cell_filter:
+        datatype: string
+        default: EmptyDrops_CR
+        description: Cell calling method
+      output_prefix:
+        datatype: string
+        default: "starsolo_"
+        description: Output file prefix
+      extras:
+        datatype: string
+        default: ""
+        description: Additional STARsolo options
+
+    shell: >
+      {{ binary }}
+      --runThreadN {{ threads }}
+      --genomeDir {{ genome_dir }}
+      --readFilesIn {{ read1 }} {{ read2 }}
+      {% if whitelist %}--soloCBwhitelist {{ whitelist }}{% endif %}
+      --soloType {{ solo_type }}
+      --soloFeatures {{ solo_features }}
+      --soloCellFilter {{ solo_cell_filter }}
+      --outFileNamePrefix {{ output_prefix }}
+      {{ extras }}

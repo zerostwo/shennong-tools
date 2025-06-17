@@ -1,0 +1,57 @@
+tool_name: multiqc
+description: Aggregate results from bioinformatics analyses into a single report
+citation: 10.1093/bioinformatics/btw354
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - multiqc
+
+commands:
+  run:
+    description: Run MultiQC on the specified input directory to generate a summary report
+    binary: multiqc
+    help_flag: --help
+
+    inputs:
+      input_dir:
+        datatype: directory
+        required: true
+        description: Directory containing result files (e.g., from FastQC, STAR, etc.)
+
+    outputs:
+      output_dir:
+        datatype: directory
+        required: false
+        description: Output directory for the MultiQC report
+
+    params:
+      output_name:
+        datatype: string
+        default: "multiqc_report.html"
+        description: Custom name for the output HTML report
+
+      force:
+        datatype: boolean
+        default: true
+        description: Overwrite output directory if it exists
+
+      modules:
+        datatype: string
+        default: ""
+        description: Comma-separated list of specific modules to run (optional)
+
+      extras:
+        datatype: string
+        default: ""
+        description: Additional command-line arguments to pass to MultiQC
+
+    shell: >
+      {{ binary }} {{ input_dir }}
+      {% if output_dir %} -o {{ output_dir }}{% endif %}
+      -n {{ output_name }}
+      {% if modules %} -m {{ modules }}{% endif %}
+      {% if force %} --force{% endif %}
+      {{ extras }}

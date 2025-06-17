@@ -4,8 +4,8 @@ citation: "10.1093/bioinformatics/btt656"
 
 environment:
   channels:
-    - bioconda
     - conda-forge
+    - bioconda
   dependencies:
     - subread
 

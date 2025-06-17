@@ -1,0 +1,690 @@
+---
+title: "Creating Custom Tools"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Creating Custom Tools}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Creating Custom Tools for ShennongTools
+
+This guide walks you through creating custom tool definitions for ShennongTools, from simple single-command tools to complex multi-command suites.
+
+## Why Create Custom Tools?
+
+Creating custom tools allows you to:
+
+- **Standardize your workflow**: Consistent interfaces for all tools
+- **Share reproducible methods**: Others can use your exact configurations
+- **Simplify complex commands**: Hide complexity behind simple parameters
+- **Integrate new tools**: Add cutting-edge tools before they're officially supported
+- **Customize existing tools**: Modify existing tool behaviors for your needs
+
+## Quick Start: Your First Custom Tool
+
+Let's create a simple tool wrapper for a hypothetical sequence statistics tool called `seqstats`.
+
+### 1. Create the YAML File
+
+Create `seqstats.yaml`:
+
+```yaml
+tool_name: seqstats
+description: "Calculate sequence statistics for FASTA/FASTQ files"
+citation: "doi:10.1000/example"
+
+environment:
+  channels:
+    - bioconda
+    - conda-forge
+  dependencies:
+    - seqstats=1.0.0
+
+commands:
+  stats:
+    description: "Calculate basic sequence statistics"
+    binary: seqstats
+    help_flag: "--help"
+    
+    inputs:
+      input:
+        datatype: [fasta, fastq]
+        required: true
+        description: "Input sequence file"
+    
+    outputs:
+      output:
+        datatype: txt
+        required: false
+        description: "Output statistics file (default: stdout)"
+    
+    params:
+      format:
+        datatype: string
+        default: "table"
+        description: "Output format (table|json|csv)"
+      threads:
+        datatype: integer
+        default: 1
+        description: "Number of threads"
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional arguments"
+    
+    shell: >
+      {{ binary }} {{ input }}
+      {% if output %} -o {{ output }}{% endif %}
+      --format {{ format }}
+      {% if threads > 1 %} --threads {{ threads }}{% endif %}
+      {{ extras }}
+```
+
+### 2. Test Your Tool
+
+```{r test_custom}
+library(ShennongTools)
+
+# Add your custom tool to a toolbox
+toolbox <- sn_initialize_toolbox()
+toolbox <- sn_add_tool(toolbox, "seqstats", yaml_file = "path/to/seqstats.yaml")
+
+# Test with dry run
+result <- sn_run("seqstats", "stats",
+  input = "sequences.fasta",
+  output = "stats.txt",
+  format = "csv",
+  dry_run = TRUE
+)
+
+print(result@rendered_command)
+# Output: seqstats sequences.fasta -o stats.txt --format csv
+```
+
+## Advanced Example: Multi-Command Tool
+
+Let's create a more complex tool with multiple commands:
+
+```yaml
+tool_name: myaligner
+description: "Custom sequence alignment tool with preprocessing"
+citation: "doi:10.1000/myaligner"
+
+environment:
+  channels:
+    - bioconda
+    - conda-forge
+  dependencies:
+    - myaligner=2.1.0
+    - samtools=1.19.2
+    - python>=3.8
+    - pip:
+        - biopython>=1.79
+
+commands:
+  preprocess:
+    description: "Preprocess reads before alignment"
+    binary: myaligner-prep
+    help_flag: "-h"
+    
+    inputs:
+      reads:
+        datatype: fastq
+        required: true
+        description: "Input reads file"
+    
+    outputs:
+      output:
+        datatype: fastq
+        required: true
+        description: "Preprocessed reads"
+      report:
+        datatype: html
+        required: false
+        description: "Preprocessing report"
+    
+    params:
+      min_length:
+        datatype: integer
+        default: 50
+        description: "Minimum read length"
+      quality_threshold:
+        datatype: integer
+        default: 20
+        description: "Quality threshold"
+      adapter_seq:
+        datatype: string
+        default: ""
+        description: "Adapter sequence to remove"
+      threads:
+        datatype: integer
+        default: 4
+        description: "Number of threads"
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional preprocessing options"
+    
+    shell: >
+      {{ binary }} -i {{ reads }} -o {{ output }}
+      --min-length {{ min_length }}
+      --quality {{ quality_threshold }}
+      {% if adapter_seq %} --adapter {{ adapter_seq }}{% endif %}
+      {% if report %} --report {{ report }}{% endif %}
+      -t {{ threads }} {{ extras }}
+
+  index:
+    description: "Build alignment index"
+    binary: myaligner-index
+    help_flag: "--help"
+    
+    inputs:
+      reference:
+        datatype: fasta
+        required: true
+        description: "Reference genome"
+    
+    outputs:
+      index:
+        datatype: string
+        required: true
+        description: "Index prefix"
+    
+    params:
+      kmer_size:
+        datatype: integer
+        default: 21
+        description: "K-mer size for indexing"
+      threads:
+        datatype: integer
+        default: 8
+        description: "Number of threads"
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional indexing options"
+    
+    shell: >
+      {{ binary }} {{ reference }} {{ index }}
+      -k {{ kmer_size }} -t {{ threads }} {{ extras }}
+
+  align:
+    description: "Align reads to reference"
+    binary: myaligner
+    help_flag: "--help"
+    
+    inputs:
+      index:
+        datatype: string
+        required: true
+        description: "Alignment index prefix"
+      reads1:
+        datatype: fastq
+        required: true
+        description: "Forward reads"
+      reads2:
+        datatype: fastq
+        required: false
+        description: "Reverse reads (for paired-end)"
+    
+    outputs:
+      sam:
+        datatype: sam
+        required: true
+        description: "Output SAM file"
+      log:
+        datatype: txt
+        required: false
+        description: "Alignment log file"
+    
+    params:
+      mode:
+        datatype: string
+        default: "sensitive"
+        description: "Alignment mode (fast|sensitive|very-sensitive)"
+      max_mismatches:
+        datatype: integer
+        default: 2
+        description: "Maximum mismatches allowed"
+      threads:
+        datatype: integer
+        default: 8
+        description: "Number of threads"
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional alignment options"
+    
+    shell: >
+      {{ binary }} -x {{ index }}
+      {% if reads2 %}-1 {{ reads1 }} -2 {{ reads2 }}{% else %}-U {{ reads1 }}{% endif %}
+      -S {{ sam }}
+      --{{ mode }} -N {{ max_mismatches }}
+      -p {{ threads }}
+      {% if log %} --log {{ log }}{% endif %}
+      {{ extras }}
+```
+
+## Python-based Tools
+
+For tools that execute Python code:
+
+```yaml
+tool_name: pyanalyzer
+description: "Custom Python-based sequence analyzer"
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - python>=3.8
+    - pip:
+        - biopython>=1.79
+        - pandas>=1.3.0
+        - matplotlib>=3.5.0
+
+commands:
+  analyze:
+    description: "Analyze sequences with Python"
+    binary: python
+    help_flag: "--help"
+    
+    inputs:
+      sequences:
+        datatype: fasta
+        required: true
+        description: "Input sequences"
+    
+    outputs:
+      results:
+        datatype: csv
+        required: true
+        description: "Analysis results"
+      plot:
+        datatype: png
+        required: false
+        description: "Visualization plot"
+    
+    params:
+      analysis_type:
+        datatype: string
+        default: "composition"
+        description: "Type of analysis (composition|gc_content|length_dist)"
+      min_length:
+        datatype: integer
+        default: 100
+        description: "Minimum sequence length"
+    
+    python: |
+      from Bio import SeqIO
+      import pandas as pd
+      import matplotlib.pyplot as plt
+      import sys
+      
+      # Parse sequences
+      sequences = []
+      for record in SeqIO.parse("{{ sequences }}", "fasta"):
+          if len(record.seq) >= {{ min_length }}:
+              sequences.append({
+                  'id': record.id,
+                  'length': len(record.seq),
+                  'gc_content': (record.seq.count('G') + record.seq.count('C')) / len(record.seq)
+              })
+      
+      # Create results
+      df = pd.DataFrame(sequences)
+      
+      if "{{ analysis_type }}" == "composition":
+          # Calculate nucleotide composition
+          for record in SeqIO.parse("{{ sequences }}", "fasta"):
+              seq_str = str(record.seq).upper()
+              composition = {
+                  'A': seq_str.count('A') / len(seq_str),
+                  'T': seq_str.count('T') / len(seq_str), 
+                  'G': seq_str.count('G') / len(seq_str),
+                  'C': seq_str.count('C') / len(seq_str)
+              }
+              break  # Just first sequence for demo
+          
+          results_df = pd.DataFrame([composition])
+      else:
+          results_df = df
+      
+      # Save results
+      results_df.to_csv("{{ results }}", index=False)
+      
+      # Create plot if requested
+      {% if plot %}
+      plt.figure(figsize=(10, 6))
+      plt.hist(df['length'], bins=30, alpha=0.7)
+      plt.xlabel('Sequence Length')
+      plt.ylabel('Frequency')
+      plt.title('Sequence Length Distribution')
+      plt.savefig("{{ plot }}")
+      plt.close()
+      {% endif %}
+      
+      print(f"Analyzed {len(sequences)} sequences")
+```
+
+## Best Practices for Custom Tools
+
+### 1. Naming Conventions
+
+- **Tool names**: Use lowercase, descriptive names (`myaligner`, `seqstats`)
+- **Command names**: Use verbs describing actions (`align`, `index`, `analyze`)
+- **Parameter names**: Use snake_case (`min_length`, `output_dir`)
+
+### 2. Parameter Design
+
+```yaml
+# ✅ Good parameter design
+params:
+  quality_threshold:
+    datatype: integer
+    default: 20
+    description: "Minimum base quality score (0-40)"
+  
+  output_format:
+    datatype: string
+    default: "bam"
+    description: "Output format (bam|sam|cram)"
+  
+  enable_filtering:
+    datatype: boolean
+    default: true
+    description: "Apply quality filtering to reads"
+
+# ❌ Poor parameter design
+params:
+  q:  # Too short
+    datatype: integer
+    default: 20
+    description: "Quality"  # Too vague
+  
+  fmt:  # Abbreviation unclear
+    datatype: string
+    default: "bam"
+    # Missing description
+```
+
+### 3. Template Best Practices
+
+```yaml
+# ✅ Good template
+shell: >
+  {{ binary }} align
+  --reference {{ reference }}
+  --reads {{ reads }}
+  --output {{ output }}
+  {% if quality_threshold > 0 %} --min-quality {{ quality_threshold }}{% endif %}
+  {% if threads > 1 %} --threads {{ threads }}{% endif %}
+  {% if enable_filtering %} --filter{% endif %}
+  {{ extras }}
+
+# ❌ Poor template
+shell: |
+  {{ binary }} align \
+    --reference {{ reference }} \
+    --reads {{ reads }} \
+    --output {{ output }} \
+    --min-quality {{ quality_threshold }} \
+    --threads {{ threads }} \
+    {{ extras }}
+```
+
+### 4. Error Handling
+
+Add validation in templates when possible:
+
+```yaml
+shell: >
+  {% if not reference %}echo "Error: reference is required" && exit 1{% endif %}
+  {% if threads < 1 %}echo "Error: threads must be >= 1" && exit 1{% endif %}
+  {{ binary }} --reference {{ reference }}
+  --threads {{ threads }}
+  {{ input }} {{ output }}
+```
+
+## Testing Custom Tools
+
+### 1. Template Testing
+
+```{r template_test}
+# Test individual templates
+template <- "{{ binary }} -i {{ input }} -o {{ output }} -t {{ threads }}"
+params <- list(
+  binary = "mytool",
+  input = "test.fastq",
+  output = "result.sam",
+  threads = 4
+)
+
+rendered <- sn_test_template(template, params)
+print(rendered)
+```
+
+### 2. Full Command Testing
+
+```{r command_test}
+# Test complete command with dry run
+result <- sn_run("myaligner", "align",
+  index = "genome_index",
+  reads1 = "sample_R1.fastq.gz",
+  reads2 = "sample_R2.fastq.gz",
+  sam = "alignment.sam",
+  dry_run = TRUE
+)
+
+# Check rendered command
+print(result@rendered_command)
+
+# Check parameters were resolved correctly
+print(result@params)
+```
+
+### 3. Integration Testing
+
+```{r integration_test}
+# Test with actual small datasets
+test_data_dir <- "test_data"
+
+# Create test environment
+if (!dir.exists(test_data_dir)) {
+  dir.create(test_data_dir)
+
+  # Create small test files
+  writeLines(
+    c(">seq1", "ATCGATCGATCG", ">seq2", "GCTAGCTAGCTA"),
+    file.path(test_data_dir, "test.fasta")
+  )
+}
+
+# Test your tool
+result <- sn_run("myaligner", "preprocess",
+  reads = file.path(test_data_dir, "test.fasta"),
+  output = file.path(test_data_dir, "processed.fasta"),
+  min_length = 10
+)
+
+# Verify results
+if (sn_is_toolcall_success(result)) {
+  cat("Tool test successful!\n")
+} else {
+  cat("Tool test failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Sharing Custom Tools
+
+### 1. Documentation
+
+Create comprehensive documentation for your tool:
+
+```yaml
+# Include in your YAML file
+tool_name: myaligner
+description: |
+  MyAligner is a fast, accurate sequence alignment tool optimized for 
+  short reads. It supports both single-end and paired-end reads and 
+  provides multiple alignment sensitivity modes.
+  
+  Key features:
+  - Fast indexing with configurable k-mer sizes
+  - Multiple alignment modes (fast/sensitive/very-sensitive)
+  - Built-in read preprocessing
+  - Comprehensive alignment statistics
+
+citation: "Smith, J. et al. MyAligner: Fast sequence alignment. Nature Methods (2024)"
+
+# Add usage examples in command descriptions
+commands:
+  align:
+    description: |
+      Align reads to a reference genome.
+      
+      Example usage:
+        sn_run("myaligner", "align",
+          index = "genome_index",
+          reads1 = "sample_R1.fastq.gz", 
+          reads2 = "sample_R2.fastq.gz",
+          sam = "alignment.sam",
+          mode = "sensitive"
+        )
+```
+
+### 2. Version Control
+
+Keep your tool definitions in version control:
+
+```bash
+# Create a tools repository
+git init my-shennong-tools
+cd my-shennong-tools
+
+# Organize tools
+mkdir -p tools/{myaligner,seqstats,pyanalyzer}
+cp myaligner.yaml tools/myaligner/
+cp seqstats.yaml tools/seqstats/
+
+# Add README
+echo "# Custom ShennongTools Definitions" > README.md
+
+git add .
+git commit -m "Initial tool definitions"
+```
+
+### 3. Contribution
+
+To contribute your tools to the main ShennongTools repository:
+
+1. Fork the repository
+2. Add your YAML file to `inst/tools/`
+3. Test thoroughly with diverse inputs
+4. Create a pull request with:
+   - Tool description and use cases
+   - Example usage
+   - Test results
+
+## Advanced Topics
+
+### Custom Datatypes
+
+Create tool-specific datatypes:
+
+```yaml
+# tools/myaligner/datatypes.yaml
+file_types:
+  myaligner_index:
+    description: "MyAligner index files"
+    extensions: [".idx", ".idx.meta"]
+    example_value: "genome_index"
+  
+  alignment_report:
+    description: "MyAligner alignment report"
+    extensions: [".alnrpt"]
+    example_value: "alignment_report.alnrpt"
+```
+
+### Conditional Dependencies
+
+Handle different environments:
+
+```yaml
+environment:
+  channels:
+    - bioconda
+    - conda-forge
+  dependencies:
+    - myaligner>=2.0.0
+    - samtools=1.19.2
+    - python>=3.8
+    # Platform-specific dependencies
+    - linux: [glibc>=2.17]
+    - osx: [libcxx>=10.0]
+    - pip:
+        - biopython>=1.79
+        - pysam>=0.21.0
+```
+
+### Complex Workflows
+
+Chain multiple commands:
+
+```{r workflow}
+# Create a complete analysis pipeline
+run_myaligner_pipeline <- function(sample_name, reads1, reads2, reference) {
+  # 1. Build index (if needed)
+  if (!file.exists(paste0(reference, ".idx"))) {
+    sn_run("myaligner", "index",
+      reference = paste0(reference, ".fasta"),
+      index = reference
+    )
+  }
+
+  # 2. Preprocess reads
+  prep_result <- sn_run("myaligner", "preprocess",
+    reads = reads1,
+    output = paste0(sample_name, "_prep_R1.fastq.gz"),
+    min_length = 50,
+    quality_threshold = 20
+  )
+
+  if (reads2) {
+    sn_run("myaligner", "preprocess",
+      reads = reads2,
+      output = paste0(sample_name, "_prep_R2.fastq.gz"),
+      min_length = 50,
+      quality_threshold = 20
+    )
+  }
+
+  # 3. Align
+  align_result <- sn_run("myaligner", "align",
+    index = reference,
+    reads1 = paste0(sample_name, "_prep_R1.fastq.gz"),
+    reads2 = if (reads2) paste0(sample_name, "_prep_R2.fastq.gz") else NULL,
+    sam = paste0(sample_name, "_aligned.sam"),
+    mode = "sensitive",
+    log = paste0(sample_name, "_alignment.log")
+  )
+
+  return(list(
+    preprocessing = prep_result,
+    alignment = align_result
+  ))
+}
+```
+
+Creating custom tools for ShennongTools allows you to leverage the framework's power while adding your own specialized functionality. With proper design and testing, your tools can become valuable contributions to the bioinformatics community. 

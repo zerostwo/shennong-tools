@@ -1,0 +1,312 @@
+---
+title: "Seqkit"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Seqkit}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Seqkit
+
+A cross-platform and ultrafast toolkit for FASTA/Q file manipulation
+
+## Citation
+
+**Citation:** 10.1371/journal.pone.0163962
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- bioconda
+- conda-forge
+
+**Dependencies:**
+- seqkit=2.6.1
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("seqkit", "seq", ...)
+```
+
+## Available Commands
+
+### seq
+
+Print basic statistics or manipulate FASTA/Q sequences
+
+**Basic Usage:**
+
+```r
+result <- sn_run("seqkit", "seq",
+  # Add your parameters here
+)
+```
+
+### stats
+
+FASTA/Q file statistics
+
+**Basic Usage:**
+
+```r
+result <- sn_run("seqkit", "stats",
+  # Add your parameters here
+)
+```
+
+### grep
+
+Search sequences by ID or pattern
+
+**Basic Usage:**
+
+```r
+result <- sn_run("seqkit", "grep",
+  # Add your parameters here
+)
+```
+
+### fx2tab
+
+Convert FASTA/Q to tab-delimited table
+
+**Basic Usage:**
+
+```r
+result <- sn_run("seqkit", "fx2tab",
+  # Add your parameters here
+)
+```
+
+### rmdup
+
+Remove duplicate sequences
+
+**Basic Usage:**
+
+```r
+result <- sn_run("seqkit", "rmdup",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Seq Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("seqkit", "seq",
+  input = "input_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Stats Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("seqkit", "stats",
+  input = "input_file.txt",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Grep Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("seqkit", "grep",
+  input = "input_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Fx2tab Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("seqkit", "fx2tab",
+  input = "input_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Rmdup Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("seqkit", "rmdup",
+  input = "input_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### seq Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | fasta, fastq | Yes | Input FASTA/Q file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | fasta, fastq | No | Output file (stdout by default) |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `id` | string | "" | Only print sequences with this ID |
+| `head` | integer | 0 | Print first N records (0 = all) |
+| `tail` | integer | 0 | Print last N records (0 = all) |
+| `extras` | string | "" | Additional parameters |
+
+### stats Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | fasta, fastq | Yes | Input FASTA/Q file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | tsv | No | Output summary table (stdout by default) |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 4 | Number of threads |
+| `extras` | string | "" | Additional arguments |
+
+### grep Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | fasta, fastq | Yes | Input FASTA/Q file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | fasta, fastq | No | Output FASTA/Q file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `pattern` | string | "" | Pattern or ID to match |
+| `use_regex` | boolean | FALSE | Use regular expressions |
+| `extras` | string | "" | Additional grep options |
+
+### fx2tab Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | fasta, fastq | Yes | Input file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | tsv | No | Tab-separated output (stdout by default) |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `only_seq` | boolean | FALSE | Only output sequence (no ID/desc) |
+| `extras` | string | "" | Additional options |
+
+### rmdup Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | fasta, fastq | Yes | Input file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | fasta, fastq | No | Deduplicated output |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `by_seq` | boolean | TRUE | Remove by sequence rather than ID |
+| `extras` | string | "" | Additional rmdup options |
+

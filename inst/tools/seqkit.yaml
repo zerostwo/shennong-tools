@@ -1,0 +1,185 @@
+tool_name: seqkit
+description: A cross-platform and ultrafast toolkit for FASTA/Q file manipulation
+citation: 10.1371/journal.pone.0163962
+
+environment:
+  channels:
+    - bioconda
+    - conda-forge
+  dependencies:
+    - seqkit
+
+commands:
+
+  seq:
+    description: Print basic statistics or manipulate FASTA/Q sequences
+    binary: seqkit
+    help_flag: seq -h
+
+    inputs:
+      input:
+        datatype: [fasta, fastq]
+        required: true
+        description: Input FASTA/Q file
+
+    outputs:
+      output:
+        datatype: [fasta, fastq]
+        required: false
+        description: Output file (stdout by default)
+
+    params:
+      id:
+        datatype: string
+        default: ""
+        description: Only print sequences with this ID
+      head:
+        datatype: integer
+        default: 0
+        description: Print first N records (0 = all)
+      tail:
+        datatype: integer
+        default: 0
+        description: Print last N records (0 = all)
+      extras:
+        datatype: string
+        default: ""
+        description: Additional parameters
+    shell: >
+      {{ binary }} seq
+      {% if id %} -n -p -i {{ id }}{% endif %}
+      {% if head > 0 %} -H {{ head }}{% endif %}
+      {% if tail > 0 %} -T {{ tail }}{% endif %}
+      {{ extras }} {{ input }}
+      {% if output %} > {{ output }}{% endif %}
+
+  stats:
+    description: FASTA/Q file statistics
+    binary: seqkit
+    help_flag: stats -h
+
+    inputs:
+      input:
+        datatype: [fasta, fastq]
+        required: true
+        description: Input FASTA/Q file
+
+    outputs:
+      output:
+        datatype: tsv
+        required: false
+        description: Output summary table (stdout by default)
+
+    params:
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads
+      extras:
+        datatype: string
+        default: ""
+        description: Additional arguments
+    shell: >
+      {{ binary }} stats -j {{ threads }} {{ extras }} {{ input }}
+      {% if output %} > {{ output }}{% endif %}
+
+  grep:
+    description: Search sequences by ID or pattern
+    binary: seqkit
+    help_flag: grep -h
+
+    inputs:
+      input:
+        datatype: [fasta, fastq]
+        required: true
+        description: Input FASTA/Q file
+
+    outputs:
+      output:
+        datatype: [fasta, fastq]
+        required: false
+        description: Output FASTA/Q file
+
+    params:
+      pattern:
+        datatype: string
+        default: ""
+        description: Pattern or ID to match
+      use_regex:
+        datatype: boolean
+        default: false
+        description: Use regular expressions
+      extras:
+        datatype: string
+        default: ""
+        description: Additional grep options
+    shell: >
+      {{ binary }} grep
+      {% if pattern %} -p {{ pattern }}{% endif %}
+      {% if use_regex %} -r{% endif %}
+      {{ extras }} {{ input }}
+      {% if output %} > {{ output }}{% endif %}
+
+  fx2tab:
+    description: Convert FASTA/Q to tab-delimited table
+    binary: seqkit
+    help_flag: fx2tab -h
+
+    inputs:
+      input:
+        datatype: [fasta, fastq]
+        required: true
+        description: Input file
+
+    outputs:
+      output:
+        datatype: tsv
+        required: false
+        description: Tab-separated output (stdout by default)
+
+    params:
+      only_seq:
+        datatype: boolean
+        default: false
+        description: Only output sequence (no ID/desc)
+      extras:
+        datatype: string
+        default: ""
+        description: Additional options
+    shell: >
+      {{ binary }} fx2tab {{ input }}
+      {% if only_seq %} -s{% endif %}
+      {{ extras }}
+      {% if output %} > {{ output }}{% endif %}
+
+  rmdup:
+    description: Remove duplicate sequences
+    binary: seqkit
+    help_flag: rmdup -h
+
+    inputs:
+      input:
+        datatype: [fasta, fastq]
+        required: true
+        description: Input file
+
+    outputs:
+      output:
+        datatype: [fasta, fastq]
+        required: false
+        description: Deduplicated output
+
+    params:
+      by_seq:
+        datatype: boolean
+        default: true
+        description: Remove by sequence rather than ID
+      extras:
+        datatype: string
+        default: ""
+        description: Additional rmdup options
+    shell: >
+      {{ binary }} rmdup
+      {% if by_seq %} -s{% endif %}
+      {{ extras }} {{ input }}
+      {% if output %} > {{ output }}{% endif %}

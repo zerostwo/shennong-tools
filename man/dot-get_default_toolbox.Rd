@@ -2,11 +2,11 @@
 % Please edit documentation in R/run.R
 \name{.get_default_toolbox}
 \alias{.get_default_toolbox}
-\title{Get Default Toolbox}
+\title{Get Default Toolbox with Smart Loading}
 \usage{
 .get_default_toolbox()
 }
 \description{
-Get Default Toolbox
+Get Default Toolbox with Smart Loading
 }
 \keyword{internal}

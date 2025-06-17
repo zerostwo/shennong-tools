@@ -1,0 +1,114 @@
+tool_name: rsem
+description: "RSEM: RNA-Seq by Expectation Maximization for transcript quantification"
+citation: "10.1186/1471-2105-12-323"
+
+environment:
+  channels: 
+    - conda-forge
+    - bioconda
+  dependencies:
+    - rsem
+    - bowtie2
+    - samtools
+
+commands:
+  prepare_reference:
+    description: "Prepare reference transcriptome for RSEM quantification"
+    binary: rsem-prepare-reference
+    help_flag: "--help"
+
+    inputs:
+      reference_fasta:
+        datatype: fasta
+        required: true
+        description: "Reference transcriptome in FASTA format"
+      reference_gtf:
+        datatype: gtf
+        required: false
+        description: "Optional GTF annotation for gene structure"
+
+    outputs:
+      reference_prefix:
+        datatype: prefix
+        required: true
+        description: "Prefix for RSEM reference output files"
+
+    params:
+      aligner:
+        datatype: string
+        default: "bowtie2"
+        description: "Aligner to use for indexing (e.g., bowtie, bowtie2, star)"
+      threads:
+        datatype: integer
+        default: 4
+        description: "Number of threads to use"
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional options to pass to rsem-prepare-reference"
+
+    shell: >
+      {{ binary }}
+      {% if reference_gtf %}--gtf {{ reference_gtf }}{% endif %}
+      --{{ aligner }}
+      --num-threads {{ threads }}
+      {{ reference_fasta }} {{ reference_prefix }}
+      {{ extras }}
+
+  calculate_expression:
+    description: "Quantify gene and transcript expression from alignments or raw reads"
+    binary: rsem-calculate-expression
+    help_flag: "--help"
+
+    inputs:
+      reads:
+        datatype: [fastq, fastq.gz, bam]
+        required: true
+        description: "Input read files (paired or single FASTQ or BAM)"
+      reference_prefix:
+        datatype: prefix
+        required: true
+        description: "Prefix of the RSEM reference"
+
+    outputs:
+      output_prefix:
+        datatype: prefix
+        required: true
+        description: "Prefix for output result files"
+
+    params:
+      paired_end:
+        datatype: boolean
+        default: false
+        description: "Whether input is paired-end"
+      aligner:
+        datatype: string
+        default: "bowtie2"
+        description: "Aligner to use if aligning (e.g., bowtie2, star)"
+      bam_input:
+        datatype: boolean
+        default: false
+        description: "Whether the input is a pre-aligned BAM file"
+      threads:
+        datatype: integer
+        default: 4
+        description: "Number of threads"
+      output_genome_bam:
+        datatype: boolean
+        default: false
+        description: "Output genome coordinate BAM"
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional options to pass to rsem-calculate-expression"
+
+    shell: >
+      {{ binary }}
+      {% if bam_input %}--bam{% endif %}
+      {% if paired_end and not bam_input %}--paired-end{% endif %}
+      --{{ aligner }}
+      --num-threads {{ threads }}
+      {% if output_genome_bam %}--output-genome-bam{% endif %}
+      {{ reads if reads is string else reads | join(" ") }}
+      {{ reference_prefix }} {{ output_prefix }}
+      {{ extras }}

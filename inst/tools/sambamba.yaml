@@ -1,0 +1,186 @@
+tool_name: sambamba
+description: Fast and efficient BAM file processing tool written in D
+citation: 10.1093/bioinformatics/btv098
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - sambamba
+
+commands:
+  view:
+    description: Filter and convert BAM/SAM files
+    binary: sambamba
+    help_flag: --help
+
+    inputs:
+      input:
+        datatype: [bam, sam, cram]
+        required: true
+        description: Input alignment file
+
+    outputs:
+      output:
+        datatype: [bam, sam]
+        required: true
+        description: Output file after filtering or format conversion
+
+    params:
+      format:
+        datatype: string
+        default: bam
+        description: Output format (bam or sam)
+      region:
+        datatype: string
+        default: ""
+        description: Region string to extract (e.g., chr1:1000-2000)
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads
+      filter:
+        datatype: string
+        default: ""
+        description: Filtering expression for reads
+      extras:
+        datatype: string
+        default: ""
+        description: Extra parameters
+
+    shell: >
+      {{ binary }} view -t {{ threads }} -f {{ format }} {{ input }}
+      {% if region %} {{ region }}{% endif %}
+      {% if filter %} -F "{{ filter }}"{% endif %}
+      -o {{ output }} {{ extras }}
+
+  sort:
+    description: Sort BAM files by coordinate
+    binary: sambamba
+    help_flag: --help
+
+    inputs:
+      input:
+        datatype: bam
+        required: true
+        description: Input BAM file to sort
+
+    outputs:
+      output:
+        datatype: bam
+        required: true
+        description: Sorted BAM file
+
+    params:
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads
+      memory:
+        datatype: string
+        default: "4G"
+        description: Amount of memory to use per thread
+      extras:
+        datatype: string
+        default: ""
+        description: Additional parameters
+
+    shell: >
+      {{ binary }} sort -t {{ threads }} --memory-limit {{ memory }} -o {{ output }} {{ input }} {{ extras }}
+
+  index:
+    description: Create BAM index
+    binary: sambamba
+    help_flag: --help
+
+    inputs:
+      input:
+        datatype: bam
+        required: true
+        description: BAM file to index
+
+    outputs:
+      bai:
+        datatype: bai
+        required: true
+        description: Output index file
+
+    params:
+      threads:
+        datatype: integer
+        default: 2
+        description: Number of threads
+      extras:
+        datatype: string
+        default: ""
+        description: Extra options
+
+    shell: >
+      {{ binary }} index -t {{ threads }} {{ input }} {{ extras }}
+
+  markdup:
+    description: Mark duplicate reads
+    binary: sambamba
+    help_flag: --help
+
+    inputs:
+      input:
+        datatype: bam
+        required: true
+        description: Input sorted BAM file
+
+    outputs:
+      output:
+        datatype: bam
+        required: true
+        description: Output BAM file with duplicates marked
+
+    params:
+      remove_dups:
+        datatype: boolean
+        default: false
+        description: Remove duplicates instead of just marking them
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads
+      extras:
+        datatype: string
+        default: ""
+        description: Additional parameters
+
+    shell: >
+      {{ binary }} markdup -t {{ threads }}
+      {% if remove_dups %} --remove-duplicates{% endif %}
+      {{ input }} {{ output }} {{ extras }}
+
+  flagstat:
+    description: Print alignment statistics (similar to samtools flagstat)
+    binary: sambamba
+    help_flag: --help
+
+    inputs:
+      input:
+        datatype: bam
+        required: true
+        description: BAM file to analyze
+
+    outputs:
+      stats:
+        datatype: txt
+        required: true
+        description: Output file with alignment statistics
+
+    params:
+      threads:
+        datatype: integer
+        default: 2
+        description: Number of threads
+      extras:
+        datatype: string
+        default: ""
+        description: Extra options
+
+    shell: >
+      {{ binary }} flagstat -t {{ threads }} {{ input }} > {{ stats }} {{ extras }}

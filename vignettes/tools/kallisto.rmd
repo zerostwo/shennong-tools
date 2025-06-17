@@ -1,0 +1,165 @@
+---
+title: "Kallisto"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Kallisto}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Kallisto
+
+Quantification of transcript abundances from RNA-Seq data
+
+## Citation
+
+**Citation:** 10.1038/nbt.3519
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- kallisto
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("kallisto", "index", ...)
+```
+
+## Available Commands
+
+### index
+
+Build a kallisto index from a transcriptome FASTA file
+
+**Basic Usage:**
+
+```r
+result <- sn_run("kallisto", "index",
+  # Add your parameters here
+)
+```
+
+### quant
+
+Quantify transcript abundance from RNA-Seq reads using a kallisto index
+
+**Basic Usage:**
+
+```r
+result <- sn_run("kallisto", "quant",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Index Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("kallisto", "index",
+  transcriptome = "sequences.fasta",
+  index = "genome_index"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Quant Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("kallisto", "quant",
+  index = "genome_index",
+  read1 = "sample_R1.fastq.gz",
+  output_dir = "output_file.txt",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### index Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `transcriptome` | fasta | Yes | Transcriptome reference in FASTA format |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `index` | index | Yes | Output index file for kallisto quant |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `k` | integer | 31 | k-mer size (default is 31) |
+| `extras` | string | "" | Additional parameters for kallisto index |
+
+### quant Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `index` | index | Yes | Path to kallisto index |
+| `read1` | fastq | Yes | FASTQ file with first reads |
+| `read2` | fastq | No | FASTQ file with second reads (for paired-end) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output_dir` | directory | Yes | Output directory containing abundance.tsv and other results |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 4 | Number of threads |
+| `bootstrap_samples` | integer | 0 | Number of bootstrap samples to compute |
+| `single` | boolean | FALSE | Whether reads are single-end |
+| `fragment_length` | integer | 200 | Fragment length for single-end reads |
+| `sd` | numeric | 20 | Standard deviation of fragment length for single-end reads |
+| `extras` | string | "" | Additional parameters for kallisto quant |
+

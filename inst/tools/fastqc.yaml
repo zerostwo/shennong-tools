@@ -1,0 +1,69 @@
+tool_name: fastqc
+description: Quality control tool for high throughput sequencing data
+citation: "10.1093/bioinformatics/btp656"
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - fastqc
+
+commands:
+  run:
+    description: Run FastQC on sequencing data
+    binary: fastqc
+    help_flag: --help
+
+    inputs:
+      reads:
+        datatype: [fastq, bam, sam]
+        required: true
+        description: Input sequence file(s) to be analyzed
+
+    outputs:
+      outdir:
+        datatype: directory
+        description: Output directory where FastQC results are saved
+
+    params:
+      threads:
+        datatype: integer
+        default: 2
+        description: Number of threads to use for parallel processing
+
+      format:
+        datatype: string
+        default: ""
+        description: Force input file format (fastq, bam, sam)
+
+      extract:
+        datatype: boolean
+        default: true
+        description: Whether to extract the output zip file
+
+      adapters:
+        datatype: string
+        default: ""
+        description: Optional adapter file
+
+      contaminants:
+        datatype: string
+        default: ""
+        description: Optional contaminants file
+
+      extras:
+        datatype: string
+        default: ""
+        description: Additional arguments to pass to FastQC
+
+    shell: >
+      {{ binary }}
+      {% if threads %} --threads {{ threads }}{% endif %}
+      {% if format %} --format {{ format }}{% endif %}
+      {% if extract %} --extract{% else %} --noextract{% endif %}
+      {% if adapters %} --adapters {{ adapters }}{% endif %}
+      {% if contaminants %} --contaminants {{ contaminants }}{% endif %}
+      {% if extras %} {{ extras }}{% endif %}
+      {% if outdir %} --outdir {{ outdir }}{% endif %}
+      {{ reads }}

@@ -1,4 +1,8 @@
 file_types:
+  sra:
+    description: SRA format for sequencing reads
+    extensions: [".sra"]
+    example_value: "path/to/accession.sra"
   fastq:
     description: FASTQ format for raw sequencing reads
     extensions: [".fq", ".fastq", ".fq.gz", ".fastq.gz"]

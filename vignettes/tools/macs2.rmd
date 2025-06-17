@@ -1,0 +1,170 @@
+---
+title: "Macs2"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Macs2}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Macs2
+
+Model-based Analysis of ChIP-Seq (MACS2) for peak calling
+
+## Citation
+
+**Citation:** 10.1186/gb-2008-9-9-r137
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- bioconda
+- conda-forge
+
+**Dependencies:**
+- macs2
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("macs2", "callpeak", ...)
+```
+
+## Available Commands
+
+### callpeak
+
+Call peaks from aligned ChIP-seq reads
+
+**Basic Usage:**
+
+```r
+result <- sn_run("macs2", "callpeak",
+  # Add your parameters here
+)
+```
+
+### bdgcmp
+
+Compare treatment and control signal tracks (e.g., FE, logLR)
+
+**Basic Usage:**
+
+```r
+result <- sn_run("macs2", "bdgcmp",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Callpeak Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("macs2", "callpeak",
+  treatment = "alignment.bam",
+  peaks = "example_file",
+  threads = 1,
+  format = "BAM"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Bdgcmp Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("macs2", "bdgcmp",
+  tfile = "input_file.txt",
+  cfile = "input_file.txt",
+  outfile = "input_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### callpeak Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `treatment` | bam | Yes | Aligned reads from ChIP-seq experiment |
+| `control` | bam | No | Control/input sample (optional) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `peaks` | narrowPeak, broadPeak | Yes | Peak calling result files |
+| `summits` | bed | No | Summits of peaks (optional) |
+| `log` | txt | No | Log file with command summary |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `format` | string | "BAM" | Format of input files (e.g., BAM, BED, ELAND) |
+| `genome_size` | string | "hs" | Effective genome size (e.g., hs, mm, ce, dm) |
+| `name` | string | "macs2_output" | Prefix name for output files |
+| `qvalue` | numeric | 0.05 | FDR cutoff for peak detection |
+| `broad` | boolean | FALSE | Enable broad peak calling |
+| `threads` | integer | 1 | Number of threads (for future parallel extensions) |
+| `extras` | string | "" | Additional arguments to pass to MACS2 |
+
+### bdgcmp Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tfile` | bedgraph | Yes | Treatment bedGraph file (e.g., *_treat_pileup.bdg) |
+| `cfile` | bedgraph | Yes | Control bedGraph file (e.g., *_control_lambda.bdg) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `outfile` | bedgraph | Yes | Output comparison signal track |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `method` | string | "FE" | Comparison method (FE, logLR, ppois, qpois) |
+| `pseudocount` | numeric | 1 | Pseudocount added to avoid division by zero |
+| `extras` | string | "" | Extra parameters for bdgcmp |
+

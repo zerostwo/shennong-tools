@@ -24,3 +24,11 @@ print(info$description)
 print(names(info$commands))
 }
 }
+\seealso{
+Other tool information: 
+\code{\link{sn_get_tool_config}()},
+\code{\link{sn_help}()},
+\code{\link{sn_list_tools}()},
+\code{\link{sn_load_registry}()}
+}
+\concept{tool information}

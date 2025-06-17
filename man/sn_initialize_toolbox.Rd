@@ -8,7 +8,7 @@ sn_initialize_toolbox(base_dir = NULL, mamba_path = NULL)
 }
 \arguments{
 \item{base_dir}{Character. Base directory for tool installations.
-Installation paths will be {base_dir}/{tool_name}/{version}.}
+Installation paths will be \\{base_dir\\}/\\{tool_name\\}/\\{version\\}.}
 
 \item{mamba_path}{Character. Path to mamba/micromamba executable.
 If NULL, will try to find automatically.}
@@ -25,3 +25,21 @@ This is the starting point for managing bioinformatics tools.
 toolbox <- sn_initialize_toolbox("/opt/biotools")
 }
 }
+\seealso{
+Other tool management: 
+\code{\link{.validate_tool_legacy}()},
+\code{\link{default_toolbox}},
+\code{\link{sn_add_tool}()},
+\code{\link{sn_check_user_toolbox}()},
+\code{\link{sn_diagnose_tool}()},
+\code{\link{sn_get_toolbox_info}()},
+\code{\link{sn_install_micromamba}()},
+\code{\link{sn_install_tool}()},
+\code{\link{sn_load_toolbox}()},
+\code{\link{sn_remove_tool}()},
+\code{\link{sn_reset_to_default}()},
+\code{\link{sn_reset_toolbox}()},
+\code{\link{sn_save_toolbox}()},
+\code{\link{sn_validate_tool}()}
+}
+\concept{tool management}

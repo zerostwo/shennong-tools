@@ -1,0 +1,264 @@
+---
+title: "Bedtools"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Bedtools}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Bedtools
+
+A powerful toolset for genome arithmetic.
+
+## Citation
+
+**Citation:** 10.1093/bioinformatics/btq033
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- bedtools
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("bedtools", "intersect", ...)
+```
+
+## Available Commands
+
+### intersect
+
+Intersect two sets of genomic features.
+
+**Basic Usage:**
+
+```r
+result <- sn_run("bedtools", "intersect",
+  # Add your parameters here
+)
+```
+
+### merge
+
+Merge overlapping BED intervals.
+
+**Basic Usage:**
+
+```r
+result <- sn_run("bedtools", "merge",
+  # Add your parameters here
+)
+```
+
+### sort
+
+Sort a BED file by chromosomal coordinates.
+
+**Basic Usage:**
+
+```r
+result <- sn_run("bedtools", "sort",
+  # Add your parameters here
+)
+```
+
+### genomecov
+
+Generate genome-wide coverage reports.
+
+**Basic Usage:**
+
+```r
+result <- sn_run("bedtools", "genomecov",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Intersect Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("bedtools", "intersect",
+  a = "regions.bed",
+  b = "regions.bed",
+  output = "output_file.txt",
+  threads = 1
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Merge Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("bedtools", "merge",
+  input = "input_file.txt",
+  output = "output_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Sort Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("bedtools", "sort",
+  input = "input_file.txt",
+  output = "output_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Genomecov Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("bedtools", "genomecov",
+  input = "input_file.txt",
+  output = "output_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### intersect Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `a` | bed | Yes | First input BED file |
+| `b` | bed | Yes | Second input BED file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | bed | Yes | Output BED file with intersections |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 1 | Number of threads to use (not applicable, but included for consistency) |
+| `extras` | string | "" | Extra parameters to pass to bedtools |
+
+### merge Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bed | Yes | Input BED file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | bed | Yes | Output merged BED file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `extras` | string | "" | Extra parameters to pass to bedtools |
+
+### sort Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bed | Yes | Input BED file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | bed | Yes | Sorted BED file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `faidx` | string | "" | Optional genome file for sorting order |
+| `extras` | string | "" | Extra parameters |
+
+### genomecov Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | bed | Yes | Input BED file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | bed | Yes | Output coverage file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `genome` | string | "" | Path to genome file with chromosome sizes |
+| `bga` | boolean | FALSE | Report coverage as BedGraph (BGA) |
+| `extras` | string | "" | Extra parameters |
+

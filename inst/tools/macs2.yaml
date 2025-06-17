@@ -1,0 +1,117 @@
+tool_name: macs2
+description: Model-based Analysis of ChIP-Seq (MACS2) for peak calling
+citation: 10.1186/gb-2008-9-9-r137
+
+environment:
+  channels:
+    - bioconda
+    - conda-forge
+  dependencies:
+    - macs2
+
+commands:
+  callpeak:
+    description: Call peaks from aligned ChIP-seq reads
+    binary: macs2
+    help_flag: callpeak --help
+
+    inputs:
+      treatment:
+        datatype: bam
+        required: true
+        description: Aligned reads from ChIP-seq experiment
+      control:
+        datatype: bam
+        required: false
+        description: Control/input sample (optional)
+
+    outputs:
+      peaks:
+        datatype: [narrowPeak, broadPeak]
+        required: true
+        description: Peak calling result files
+      summits:
+        datatype: bed
+        required: false
+        description: Summits of peaks (optional)
+      log:
+        datatype: txt
+        required: false
+        description: Log file with command summary
+
+    params:
+      format:
+        datatype: string
+        default: BAM
+        description: Format of input files (e.g., BAM, BED, ELAND)
+      genome_size:
+        datatype: string
+        default: hs
+        description: Effective genome size (e.g., hs, mm, ce, dm)
+      name:
+        datatype: string
+        default: "macs2_output"
+        description: Prefix name for output files
+      qvalue:
+        datatype: numeric
+        default: 0.05
+        description: FDR cutoff for peak detection
+      broad:
+        datatype: boolean
+        default: false
+        description: Enable broad peak calling
+      threads:
+        datatype: integer
+        default: 1
+        description: Number of threads (for future parallel extensions)
+      extras:
+        datatype: string
+        default: ""
+        description: Additional arguments to pass to MACS2
+
+    shell: >
+      {{ binary }} callpeak -t {{ treatment }}
+      {% if control %} -c {{ control }}{% endif %}
+      -f {{ format }} -g {{ genome_size }} -n {{ name }}
+      -q {{ qvalue }} {% if broad %} --broad{% endif %}
+      {{ extras }}
+
+  bdgcmp:
+    description: Compare treatment and control signal tracks (e.g., FE, logLR)
+    binary: macs2
+    help_flag: bdgcmp --help
+
+    inputs:
+      tfile:
+        datatype: bedgraph
+        required: true
+        description: Treatment bedGraph file (e.g., *_treat_pileup.bdg)
+      cfile:
+        datatype: bedgraph
+        required: true
+        description: Control bedGraph file (e.g., *_control_lambda.bdg)
+
+    outputs:
+      outfile:
+        datatype: bedgraph
+        required: true
+        description: Output comparison signal track
+
+    params:
+      method:
+        datatype: string
+        default: FE
+        description: Comparison method (FE, logLR, ppois, qpois)
+      pseudocount:
+        datatype: numeric
+        default: 1.0
+        description: Pseudocount added to avoid division by zero
+      extras:
+        datatype: string
+        default: ""
+        description: Extra parameters for bdgcmp
+
+    shell: >
+      {{ binary }} bdgcmp -t {{ tfile }} -c {{ cfile }}
+      -m {{ method }} -o {{ outfile }} --pseudo {{ pseudocount }}
+      {{ extras }}

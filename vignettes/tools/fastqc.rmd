@@ -1,0 +1,109 @@
+---
+title: "Fastqc"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Fastqc}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Fastqc
+
+Quality control tool for high throughput sequence data
+
+## Citation
+
+**Citation:** 10.1093/bioinformatics/btp641
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- fastqc
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("fastqc", "run", ...)
+```
+
+## Available Commands
+
+### run
+
+Run FastQC on one or more FASTQ files
+
+**Basic Usage:**
+
+```r
+result <- sn_run("fastqc", "run",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Run Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("fastqc", "run",
+  reads = "input_file.txt",
+  output_dir = "output_file.txt",
+  threads = 4,
+  format = ""
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### run Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `reads` | fastq | Yes | Input FASTQ files (single-end or paired-end) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output_dir` | directory | Yes | Output directory containing FastQC reports |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 4 | Number of threads to use |
+| `extract` | boolean | TRUE | Whether to extract the output zip files |
+| `format` | string | "" | Optional input format override (e.g., bam) |
+| `extras` | string | "" | Additional arguments to pass to FastQC |
+

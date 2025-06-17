@@ -1,0 +1,90 @@
+tool_name: stringtie
+description: Transcript assembly and quantification for RNA-Seq
+citation: 10.1038/nbt.3122
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - stringtie
+
+commands:
+  quant:
+    description: Assemble transcripts and estimate their abundance from aligned reads (BAM)
+    binary: stringtie
+    help_flag: --help
+
+    inputs:
+      bam:
+        datatype: bam
+        required: true
+        description: Aligned reads in BAM format
+      annotation:
+        datatype: gtf
+        required: false
+        description: Reference annotation to guide assembly
+
+    outputs:
+      gtf:
+        datatype: gtf
+        required: true
+        description: Output assembled transcripts in GTF format
+      abundance:
+        datatype: tsv
+        required: false
+        description: Transcript abundance file (gene abundance or transcript TPMs)
+
+    params:
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads to use
+      extras:
+        datatype: string
+        default: ""
+        description: Additional arguments for StringTie
+
+    shell: >
+      {{ binary }} {{ bam }}
+      {% if annotation %} -G {{ annotation }}{% endif %}
+      -o {{ gtf }} -p {{ threads }}
+      {% if abundance %} -A {{ abundance }}{% endif %}
+      {{ extras }}
+
+  merge:
+    description: Merge assembled transcripts across multiple samples
+    binary: stringtie
+    help_flag: --help
+
+    inputs:
+      gtf_list:
+        datatype: [tsv, txt]
+        required: true
+        description: Text file listing multiple GTFs to be merged
+      reference:
+        datatype: gtf
+        required: false
+        description: Optional reference annotation GTF
+
+    outputs:
+      merged_gtf:
+        datatype: gtf
+        required: true
+        description: Merged transcript annotations in GTF format
+
+    params:
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads to use
+      extras:
+        datatype: string
+        default: ""
+        description: Additional arguments for StringTie merge
+
+    shell: >
+      {{ binary }} --merge {{ gtf_list }}
+      {% if reference %} -G {{ reference }}{% endif %}
+      -o {{ merged_gtf }} -p {{ threads }}
+      {{ extras }}

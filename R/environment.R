@@ -29,6 +29,8 @@
 #' sn_install_micromamba(version = "1.5.6")
 #' }
 #'
+#' @family tool management
+#' @concept tool management
 #' @export
 sn_install_micromamba <- function(
     install_dir = "~/.local/bin",
@@ -114,6 +116,8 @@ sn_install_micromamba <- function(
 #' @param overwrite Logical. Force reinstallation.
 #' @param mamba Character. Path to mamba/micromamba executable.
 #' @return Character. Path to the installed environment.
+#' @family tool management
+#' @concept tool management
 #'
 #' @examples
 #' \dontrun{
@@ -127,6 +131,8 @@ sn_install_micromamba <- function(
 #' sn_install_tool("bioinformatics", yaml = "path/to/environment.yaml")
 #' }
 #'
+#' @family tool management
+#' @concept tool management
 #' @export
 sn_install_tool <- function(tool_name,
                             version = NULL,

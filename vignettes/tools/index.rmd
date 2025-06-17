@@ -1,0 +1,61 @@
+---
+title: "Tools Index"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Tools Index}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Available Tools
+
+ShennongTools provides 19 pre-configured bioinformatics tools:
+
+| Tool | Description | Commands |
+|------|-------------|----------|
+| [Bedtools](bedtools.html) | A powerful toolset for genome arithmetic. | intersect, merge, sort, genomecov |
+| [Deeptools](deeptools.html) | A suite of tools to process and visualize deep sequencing data | bamcoverage, computematrix, plotheatmap, plotpr... |
+| [Fastp](fastp.html) | Fast all-in-one preprocessing for FastQ files | trim |
+| [Fastqc](fastqc.html) | Quality control tool for high throughput sequence data | run |
+| [Hisat2](hisat2.html) | Fast and sensitive alignment of sequencing reads to a population of genomes | index, align |
+| [Kallisto](kallisto.html) | Quantification of transcript abundances from RNA-Seq data | index, quant |
+| [Kraken2](kraken2.html) | Kraken 2 is a taxonomic classification system for metagenomics | classify, build |
+| [Macs2](macs2.html) | Model-based Analysis of ChIP-Seq (MACS2) for peak calling | callpeak, bdgcmp |
+| [Multiqc](multiqc.html) | Aggregate results from bioinformatics analyses into a single report | run |
+| [Pyscenic](pyscenic.html) | pySCENIC is a python implementation of the SCENIC pipeline to infer gene regulatory networks from single-cell RNA-seq data. | grn, ctx, aucell |
+| [Salmon](salmon.html) | A tool for transcript-level quantification from RNA-seq data using quasi-mapping | index, quant |
+| [Sambamba](sambamba.html) | Fast and efficient BAM file processing tool written in D | view, sort, index, markdup, flagstat |
+| [Samtools](samtools.html) | Utilities for manipulating alignments in the SAM, BAM, and CRAM formats | view, index, sort, faidx, fastq |
+| [Scanpy](scanpy.html) | Scanpy: scalable toolkit for analyzing single-cell gene expression data | normalize, filter_cells, filter_genes, find_hvg... |
+| [Seqkit](seqkit.html) | A cross-platform and ultrafast toolkit for FASTA/Q file manipulation | seq, stats, grep, fx2tab, rmdup |
+| [Sra Tools](sra-tools.html) | Toolkit for accessing and converting SRA data | prefetch, fasterq_dump |
+| [Star](star.html) | Spliced Transcripts Alignment to a Reference (STAR) | index, align, solo |
+| [Stringtie](stringtie.html) | Transcript assembly and quantification for RNA-Seq | quant, merge |
+| [Subread](subread.html) | A ultrafast and accurate read summarization program | featurecounts, buildindex |
+
+## Quick Start
+
+```r
+library(ShennongTools)
+
+# List all available tools
+sn_list_tools()
+
+# Get help for a specific tool
+sn_help("samtools")
+
+# Run a tool command
+result <- sn_run("samtools", "view",
+  input = "alignment.bam",
+  output = "filtered.bam",
+  flags = "-q 30"
+)
+```

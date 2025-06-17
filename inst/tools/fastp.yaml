@@ -1,0 +1,64 @@
+tool_name: fastp
+description: Fast all-in-one preprocessing for FastQ files
+citation: 10.1093/bioinformatics/bty560
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - fastp
+
+commands:
+  trim:
+    description: Trim and filter reads in FASTQ files
+    binary: fastp
+    help_flag: --help
+
+    inputs:
+      input1:
+        datatype: fastq
+        required: true
+        description: First input FASTQ file (R1)
+      input2:
+        datatype: fastq
+        required: false
+        description: Second input FASTQ file (R2, optional)
+
+    outputs:
+      output1:
+        datatype: fastq
+        required: true
+        description: First output FASTQ file (R1)
+      output2:
+        datatype: fastq
+        required: false
+        description: Second output FASTQ file (R2)
+      html_report:
+        datatype: html
+        required: false
+        description: HTML quality control report
+      json_report:
+        datatype: json
+        required: false
+        description: JSON quality control report
+
+    params:
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads to use
+      extras:
+        datatype: string
+        default: ""
+        description: Additional arguments to pass to fastp
+
+    shell: >
+      {{ binary }}
+      -i {{ input1 }}
+      {% if input2 %} -I {{ input2 }}{% endif %}
+      -o {{ output1 }}
+      {% if output2 %} -O {{ output2 }}{% endif %}
+      {% if html_report %} --html {{ html_report }}{% endif %}
+      {% if json_report %} --json {{ json_report }}{% endif %}
+      -w {{ threads }} {{ extras }}

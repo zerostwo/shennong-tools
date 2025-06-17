@@ -1,0 +1,413 @@
+---
+title: "Scanpy"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Scanpy}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Scanpy
+
+Scanpy: scalable toolkit for analyzing single-cell gene expression data
+
+## Citation
+
+**Citation:** 10.1186/s13059-017-1382-0
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- python=3.12
+- numpy<2.0
+- list(pip = "scanpy[leiden]")
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("scanpy", "normalize", ...)
+```
+
+## Available Commands
+
+### normalize
+
+Normalize counts per cell to a target total count
+
+**Basic Usage:**
+
+```r
+result <- sn_run("scanpy", "normalize",
+  # Add your parameters here
+)
+```
+
+### filter_cells
+
+Filter cells based on gene expression criteria
+
+**Basic Usage:**
+
+```r
+result <- sn_run("scanpy", "filter_cells",
+  # Add your parameters here
+)
+```
+
+### filter_genes
+
+Filter genes based on expression criteria
+
+**Basic Usage:**
+
+```r
+result <- sn_run("scanpy", "filter_genes",
+  # Add your parameters here
+)
+```
+
+### find_hvg
+
+Identify highly variable genes
+
+**Basic Usage:**
+
+```r
+result <- sn_run("scanpy", "find_hvg",
+  # Add your parameters here
+)
+```
+
+### pca
+
+Perform Principal Component Analysis
+
+**Basic Usage:**
+
+```r
+result <- sn_run("scanpy", "pca",
+  # Add your parameters here
+)
+```
+
+### umap
+
+Compute UMAP embedding
+
+**Basic Usage:**
+
+```r
+result <- sn_run("scanpy", "umap",
+  # Add your parameters here
+)
+```
+
+### leiden
+
+Perform Leiden clustering
+
+**Basic Usage:**
+
+```r
+result <- sn_run("scanpy", "leiden",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Normalize Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("scanpy", "normalize",
+  input_h5ad = "input_file.txt",
+  output_h5ad = "output_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Filter_cells Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("scanpy", "filter_cells",
+  input_h5ad = "input_file.txt",
+  output_h5ad = "output_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Filter_genes Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("scanpy", "filter_genes",
+  input_h5ad = "input_file.txt",
+  output_h5ad = "output_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Find_hvg Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("scanpy", "find_hvg",
+  input_h5ad = "input_file.txt",
+  output_h5ad = "output_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Pca Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("scanpy", "pca",
+  input_h5ad = "input_file.txt",
+  output_h5ad = "output_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Umap Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("scanpy", "umap",
+  input_h5ad = "input_file.txt",
+  output_h5ad = "output_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Leiden Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("scanpy", "leiden",
+  input_h5ad = "input_file.txt",
+  output_h5ad = "output_file.txt"
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### normalize Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input_h5ad` | anndata | Yes | Input AnnData file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output_h5ad` | anndata | Yes | Output normalized AnnData file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `target_sum` | numeric | "1e4" | Target total counts per cell |
+| `log_transform` | boolean | TRUE | Apply log transformation after normalization |
+
+### filter_cells Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input_h5ad` | anndata | Yes | Input AnnData file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output_h5ad` | anndata | Yes | Output filtered AnnData file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `min_genes` | integer | 200 | Minimum number of genes expressed per cell |
+
+### filter_genes Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input_h5ad` | anndata | Yes | Input AnnData file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output_h5ad` | anndata | Yes | Output filtered AnnData file |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `min_cells` | integer | 3 | Minimum number of cells expressing the gene |
+
+### find_hvg Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input_h5ad` | anndata | Yes | Input AnnData file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output_h5ad` | anndata | Yes | Output AnnData file with HVG information |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `n_top_genes` | integer | 2000 | Number of highly variable genes to select |
+
+### pca Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input_h5ad` | anndata | Yes | Input AnnData file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output_h5ad` | anndata | Yes | Output AnnData file with PCA results |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `n_comps` | integer | 50 | Number of principal components |
+
+### umap Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input_h5ad` | anndata | Yes | Input AnnData file with PCA |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output_h5ad` | anndata | Yes | Output AnnData file with UMAP |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `n_neighbors` | integer | 15 | Number of neighbors for UMAP |
+
+### leiden Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input_h5ad` | anndata | Yes | Input AnnData file with neighborhood graph |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output_h5ad` | anndata | Yes | Output AnnData file with clusters |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `resolution` | numeric | 0.5 | Resolution parameter for clustering |
+

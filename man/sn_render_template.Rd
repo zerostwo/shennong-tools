@@ -40,3 +40,9 @@ params <- list(threads = 4, input = "test.bam", output = "filtered.bam")
 rendered <- sn_render_template(template, params, inputs, outputs, cmd_config)
 }
 }
+\seealso{
+Other template system: 
+\code{\link{sn_render_python_template}()},
+\code{\link{sn_test_template}()}
+}
+\concept{template system}

@@ -1,0 +1,162 @@
+---
+title: "Sra Tools"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Sra Tools}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Sra Tools
+
+Toolkit for accessing and converting SRA data
+
+## Citation
+
+**Citation:** 10.1093/bioinformatics/btz664
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- sra-tools
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("sra-tools", "prefetch", ...)
+```
+
+## Available Commands
+
+### prefetch
+
+Download SRA file from NCBI SRA database
+
+**Basic Usage:**
+
+```r
+result <- sn_run("sra-tools", "prefetch",
+  # Add your parameters here
+)
+```
+
+### fasterq_dump
+
+Convert SRA files to FASTQ format
+
+**Basic Usage:**
+
+```r
+result <- sn_run("sra-tools", "fasterq_dump",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Prefetch Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("sra-tools", "prefetch",
+  accession = "sample_name",
+  output_dir = "."
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Fasterq_dump Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("sra-tools", "fasterq_dump",
+  accession = "sample_name",
+  fastq1 = "reads.fastq.gz",
+  threads = 4,
+  output_dir = "."
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### prefetch Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `accession` | string | Yes | SRA accession (e.g., SRR123456) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sra_file` | sra | No | Output SRA file (stored in NCBI default location or specified path) |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `output_dir` | string | "." | Output directory to store downloaded SRA files |
+| `extras` | string | "" | Additional options for prefetch |
+
+### fasterq_dump Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `accession` | string | Yes | SRA accession or path to `.sra` file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fastq1` | fastq | Yes | First read FASTQ file (R1 or SE) |
+| `fastq2` | fastq | No | Second read FASTQ file (R2 for paired-end) |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 4 | Number of threads to use |
+| `output_dir` | string | "." | Output directory for FASTQ files |
+| `split_files` | boolean | TRUE | Whether to split paired-end reads into two files |
+| `extras` | string | "" | Additional options for fasterq-dump |
+

@@ -1,0 +1,124 @@
+url: https://songqi.org/shennong-tools/
+
+authors:
+  Songqi Duan:
+    href: https://songqi.org
+
+template:
+  bootstrap: 5
+  # theme: arrow-light
+  bslib:
+    primary: "#3E7D71"
+    # border-radius: 0.5rem
+    # btn-border-radius: 0.25rem
+  includes:
+    in_header:
+      <script defer src="https://umami.catplot.org/script.js" data-website-id="7c690c2d-15ce-4f87-9ec6-e3867755d910"></script>
+
+development:
+  mode: auto
+
+navbar:
+  bg: primary
+  structure:
+    left: [intro, reference, articles, tools, news]
+    right: [search, github]
+  components:
+    tools:
+      text: "Tools"
+      href: articles/tools/index.html
+
+home:
+  title: "ShennongTools"
+  description: "Unified Interface for Bioinformatics Tool Management and Execution"
+
+# Automatic grouping using @family tags
+reference:
+  - title: "Core Functions"
+    desc: "Main functions for tool execution and initialization"
+    contents:
+      - has_concept("core functions")
+
+  - title: "Tool Management"
+    desc: "Functions for managing tools and toolboxes"
+    contents:
+      - has_concept("tool management")
+
+  - title: "Tool Information and Help"
+    desc: "Functions for getting tool information and help"
+    contents:
+      - has_concept("tool information")
+
+  - title: "S4 Classes and Methods"
+    desc: "S4 class definitions and their methods"
+    contents:
+      - Tool-class
+      - Toolbox-class
+      - ToolCall-class
+      - show,Tool-method
+      - show,Toolbox-method
+      - show,ToolCall-method
+
+  - title: "Accessor Functions"
+    desc: "Safe accessors for S4 objects"
+    contents:
+      - has_concept("accessor functions")
+
+  - title: "Template System"
+    desc: "Template rendering and testing"
+    contents:
+      - has_concept("template system")
+
+  - title: "Mock Data Generation"
+    desc: "Functions for generating mock biological data for testing"
+    contents:
+      - has_concept("mock data generation")
+
+  - title: "Utilities"
+    desc: "Utility and maintenance functions"
+    contents:
+      - has_concept("utilities")
+
+articles:
+  - title: "Getting Started"
+    contents:
+      - quickstart
+
+  - title: "Advanced Usage"
+    contents:
+      - advanced-usage
+      - yaml-specification
+      - creating-custom-tools
+      - mock-data-generation
+
+  - title: "Tools Documentation"
+    desc: "Individual tool documentation and usage examples"
+    contents:
+      - tools-overview
+      - tools/index
+      - tools/bedtools
+      - tools/deeptools
+      - tools/fastp
+      - tools/fastqc
+      - tools/hisat2
+      - tools/kallisto
+      - tools/kraken2
+      - tools/macs2
+      - tools/multiqc
+      - tools/pyscenic
+      - tools/salmon
+      - tools/sambamba
+      - tools/samtools
+      - tools/scanpy
+      - tools/seqkit
+      - tools/sra-tools
+      - tools/star
+      - tools/stringtie
+      - tools/subread
+
+footer:
+  structure:
+    left: [developed_by, built_with]
+    right: [package]
+  components:
+    package: "Package documentation built by [pkgdown](https://pkgdown.r-lib.org/)."

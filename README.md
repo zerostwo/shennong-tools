@@ -1,0 +1,423 @@
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+# ShennongTools <img src="man/figures/logo.png" align="right" height="139" alt="" />
+
+<!-- badges: start -->
+
+[![R-CMD-check](https://github.com/zerostwo/shennong-tools/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/zerostwo/shennong-tools/actions/workflows/R-CMD-check.yaml)
+[![CRAN
+status](https://www.r-pkg.org/badges/version/ShennongTools)](https://CRAN.R-project.org/package=ShennongTools)
+[![Lifecycle:
+experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+<!-- badges: end -->
+
+**ShennongTools** provides a unified, extensible interface for managing
+and executing bioinformatics tools using YAML-based configurations.
+Named after Shennong (神农), the legendary Chinese deity of agriculture
+and medicine who taught people how to use tools and cultivate crops,
+this package brings order and efficiency to the complex landscape of
+bioinformatics tool management.
+
+## 🌟 Key Features
+
+- **🔧 Unified Interface**: Single R function (`sn_run()`) to execute
+  any bioinformatics tool
+- **📝 YAML Configuration**: Tools defined in readable, standardized
+  YAML files
+- **🐍 Multi-Language Support**: Execute both shell commands and Python
+  scripts
+- **📦 Environment Management**: Automatic conda environment setup and
+  management
+- **🔍 Resource Monitoring**: Built-in monitoring of CPU, memory, and
+  execution time
+- **🎯 Smart Templating**: Jinjar-based templating with conditional
+  logic
+- **📊 Structured Output**: Consistent output handling and logging
+- **🔄 Reproducible Workflows**: Version-controlled tool configurations
+- **⚡ Auto-Installation**: Tools installed automatically on first use
+- **🧬 Mock Data Generation**: Built-in realistic test data generation
+  for all file types
+
+## 🚀 Quick Start
+
+### Installation
+
+Install the development version from GitHub:
+
+``` r
+# Install from GitHub
+if (!require("devtools")) install.packages("devtools")
+devtools::install_github("zerostwo/shennong-tools")
+```
+
+### Basic Usage
+
+``` r
+library(ShennongTools)
+
+# Initialize the package
+sn_initialize()
+
+# List available tools
+sn_list_tools()
+
+# Get help for a specific tool
+sn_help("samtools")
+
+# Run a tool command (auto-installs if needed)
+result <- sn_run("samtools", "view",
+  input = "input.bam",
+  output = "filtered.bam",
+  flags = "-q 30"
+)
+
+# Check execution results
+print(result)
+```
+
+## 📚 Core Concepts
+
+### Tools and Commands
+
+Each bioinformatics tool (e.g., `samtools`, `hisat2`) contains multiple
+commands (e.g., `view`, `index`, `align`). Tools are defined in YAML
+files that specify:
+
+- **Environment dependencies** (conda packages)
+- **Command parameters** (inputs, outputs, options)
+- **Execution templates** (shell or Python)
+- **Help information** and examples
+
+### Example: FastQ Quality Control with fastp
+
+``` r
+# Single-end reads
+result <- sn_run("fastp", "filter",
+  input1 = "sample_R1.fastq.gz",
+  output1 = "clean_R1.fastq.gz",
+  html = "fastp_report.html",
+  json = "fastp_report.json",
+  threads = 8
+)
+
+# Paired-end reads
+result <- sn_run("fastp", "filter",
+  input1 = "sample_R1.fastq.gz",
+  input2 = "sample_R2.fastq.gz",
+  output1 = "clean_R1.fastq.gz",
+  output2 = "clean_R2.fastq.gz",
+  html = "fastp_report.html",
+  json = "fastp_report.json",
+  threads = 8
+)
+```
+
+### Example: RNA-seq Alignment with HISAT2
+
+``` r
+# Build genome index
+sn_run("hisat2", "build",
+  reference = "genome.fa",
+  index_base = "genome_index",
+  threads = 8
+)
+
+# Align paired-end reads
+result <- sn_run("hisat2", "align",
+  index = "genome_index",
+  read1 = "sample_R1.fastq.gz",
+  read2 = "sample_R2.fastq.gz",
+  bam = "aligned.bam",
+  threads = 8,
+  summary_file = "alignment_summary.txt"
+)
+
+# Check alignment statistics
+print(result@resources)
+```
+
+### Example: Peak Calling with MACS2
+
+``` r
+# ChIP-seq peak calling
+result <- sn_run("macs2", "callpeak",
+  treatment = "ChIP.bam",
+  control = "Input.bam",
+  name = "sample",
+  format = "BAM",
+  gsize = "hs",  # human genome size
+  qvalue = 0.05,
+  call_summits = TRUE
+)
+```
+
+## 🧬 Mock Data Generation
+
+ShennongTools includes a powerful mock data generation system for
+testing workflows without requiring large real datasets:
+
+### Generate Individual Files
+
+``` r
+# Generate various biological file types
+sn_generate_mockdata("fasta", "reference.fa", size = "small")
+sn_generate_mockdata("fastq", "reads_R1.fastq.gz", size = "medium")
+sn_generate_mockdata("gtf", "annotation.gtf", n_records = 100)
+sn_generate_mockdata("vcf", "variants.vcf", size = "small")
+
+# Generate with realistic parameters
+sn_generate_mockdata("fastq", "reads_150bp.fastq.gz", 
+  options = list(
+    read_length = 150,           # 150bp reads
+    adapters = "illumina",       # Illumina adapters
+    adapter_contamination_rate = 0.35,  # 35% contamination
+    min_quality = 25,            # Phred quality 25-40
+    max_quality = 40,
+    error_rate = 0.015           # 1.5% sequencing errors
+  )
+)
+```
+
+### Generate Complete Datasets
+
+``` r
+# Generate a complete RNA-seq dataset
+dataset <- sn_generate_rnaseq_dataset(
+  output_dir = "rnaseq_test",
+  n_samples = 6,
+  conditions = c("control", "treatment"),
+  n_replicates = 3,
+  read_length = "long"  # 150bp reads
+)
+
+# Generate batch mock data for multiple file types
+files <- sn_generate_mockdata_batch(
+  datatypes = c("fasta", "fastq", "gtf"),
+  output_dir = "test_data",
+  sizes = c("small", "medium", "small")
+)
+```
+
+## 🛠️ Available Tools
+
+ShennongTools comes with 19+ pre-configured bioinformatics tools:
+
+### 🧬 Sequence Analysis
+
+- **FastP**: High-performance FASTQ preprocessing with quality control
+- **SeqKit**: Ultra-fast FASTA/Q file manipulation and statistics
+- **SRA-Tools**: NCBI SRA data download and conversion
+
+### 🗺️ Read Mapping & Alignment
+
+- **HISAT2**: Fast and sensitive splice-aware alignment for RNA-seq
+- **STAR**: Ultrafast universal RNA-seq aligner with splice junction
+  detection
+- **BWA**: Burrows-Wheeler alignment for short reads
+
+### 🧮 Quantification & Assembly
+
+- **Salmon**: Transcript-level quantification from RNA-seq reads
+- **Kallisto**: Near-optimal probabilistic RNA-seq quantification
+- **StringTie**: Transcript assembly and quantification for RNA-seq
+- **Subread**: High-performance read alignment and quantification
+
+### 🔧 File Processing
+
+- **SAMtools**: Reading/writing/editing/manipulating SAM/BAM files
+- **Sambamba**: High performance modern SAM/BAM processing
+- **BEDtools**: Swiss-army knife for genome arithmetic operations
+- **DeepTools**: User-friendly tools for exploring deep-sequencing data
+
+### 🎯 Specialized Analysis
+
+- **MACS2**: Model-based Analysis of ChIP-Seq data for peak calling
+- **Kraken2**: Taxonomic classification system using k-mers
+- **MultiQC**: Aggregate results from bioinformatics analyses
+
+### 🐍 Single-cell Analysis
+
+- **Scanpy**: Single-cell analysis in Python with comprehensive toolkit
+- **pySCENIC**: Single-cell regulatory network inference and analysis
+
+``` r
+# See all available tools with descriptions
+sn_list_tools()
+
+# Get detailed information about a specific tool
+sn_show_tool("samtools")
+
+# Diagnose tool installation issues
+sn_diagnose_tool("hisat2")
+```
+
+## ⚙️ Advanced Features
+
+### Logging and Output Control
+
+``` r
+# Set global logging options
+sn_options(log_level = "minimal", log_dir = "~/analysis_logs")
+
+# Silent execution (minimal output)
+result <- sn_run("samtools", "index", input = "file.bam", log_level = "silent")
+
+# Detailed execution (show tool output)  
+result <- sn_run("samtools", "view", 
+  input = "file.bam", 
+  output = "filtered.bam",
+  log_level = "normal"
+)
+```
+
+### Dry Run and Command Preview
+
+``` r
+# Preview the command without execution
+result <- sn_run("hisat2", "align",
+  index = "genome_index",
+  read1 = "sample_R1.fastq.gz", 
+  read2 = "sample_R2.fastq.gz",
+  bam = "output.bam",
+  dry_run = TRUE
+)
+
+print(result@rendered_command)
+```
+
+### Resource Monitoring
+
+``` r
+# Run with resource monitoring
+result <- sn_run("star", "align",
+  index = "star_index",
+  read1 = "sample_R1.fastq.gz",
+  read2 = "sample_R2.fastq.gz", 
+  output_dir = "star_output",
+  threads = 16
+)
+
+# Check resource usage
+cat("Runtime:", sn_get_toolcall_runtime(result), "seconds\n")
+cat("Peak Memory:", result@resources$peak_memory_mb, "MB\n")
+cat("Exit Code:", result@resources$exit_code, "\n")
+```
+
+### Version Management
+
+``` r
+# List available versions
+sn_help("samtools")
+
+# Use specific version
+result <- sn_run("samtools", "view", 
+  input = "file.bam",
+  version = "1.19.2"
+)
+
+# Check what versions are installed
+toolbox <- sn_initialize_toolbox()
+tool <- sn_get_tool(toolbox, "samtools")
+installed_versions <- sn_get_installed_versions(tool)
+print(installed_versions)
+```
+
+## 🔧 Tool Configuration
+
+### YAML-based Tool Definitions
+
+Tools are defined using structured YAML configurations:
+
+``` yaml
+tool_name: samtools
+description: Reading/writing/editing/manipulating SAM/BAM files
+citation: "doi:10.1093/bioinformatics/btp352"
+
+environment:
+  channels: [bioconda, conda-forge]
+  dependencies:
+    - samtools=1.19.2
+
+commands:
+  view:
+    description: "Extract/print all or sub alignments in SAM or BAM format"
+    binary: samtools
+    help_flag: "view --help"
+    
+    inputs:
+      input:
+        datatype: [bam, sam, cram]
+        required: true
+        description: "Input alignment file"
+    
+    outputs:
+      output:
+        datatype: [bam, sam]
+        required: false
+        description: "Output file (default: stdout)"
+    
+    params:
+      flags:
+        datatype: string
+        default: ""
+        description: "Additional samtools view flags"
+      threads:
+        datatype: integer  
+        default: 1
+        description: "Number of threads"
+    
+    shell: >
+      {{ binary }} view {{ flags }} 
+      {% if threads > 1 %}-@ {{ threads }}{% endif %}
+      {{ input }}
+      {% if output %} -o {{ output }}{% endif %}
+```
+
+### Creating Custom Tools
+
+You can extend ShennongTools with custom tool definitions by creating
+YAML files following the same structure. See the [YAML
+Specification](inst/tools/README.md) for detailed documentation.
+
+## 📖 Documentation
+
+- **[Package Website](https://songqi.org/shennong-tools/)**: Complete
+  documentation with examples
+- **[Tools
+  Overview](https://songqi.org/shennong-tools/articles/tools-overview.html)**:
+  Detailed guide to all available tools
+- **[YAML Specification](inst/tools/README.md)**: How to create custom
+  tool definitions
+- **[Advanced
+  Usage](https://songqi.org/shennong-tools/articles/advanced-usage.html)**:
+  Power user features
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing
+Guide](CONTRIBUTING.md) for details on:
+
+- Reporting bugs and requesting features
+- Adding new tool definitions
+- Improving documentation
+- Submitting code contributions
+
+## 📄 License
+
+This project is licensed under the MIT License - see the
+[LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- **Conda/Mamba**: For robust environment management
+- **Jinjar**: For flexible template rendering  
+- **CLI**: For beautiful command-line interfaces
+- **All tool developers**: For creating the excellent bioinformatics
+  tools that ShennongTools orchestrates
+
+------------------------------------------------------------------------
+
+*“Just as Shennong taught humanity to cultivate crops and use medicinal
+herbs, ShennongTools teaches your workflows to cultivate reproducible,
+efficient bioinformatics analyses.”*

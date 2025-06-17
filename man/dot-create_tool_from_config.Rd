@@ -2,11 +2,11 @@
 % Please edit documentation in R/toolbox.R
 \name{.create_tool_from_config}
 \alias{.create_tool_from_config}
-\title{Create Tool Object from Configuration}
+\title{Create or Update Tool Object from Configuration}
 \usage{
-.create_tool_from_config(config, version, base_dir)
+.create_tool_from_config(config, version, base_dir, existing_tool = NULL)
 }
 \description{
-Create Tool Object from Configuration
+Create or Update Tool Object from Configuration
 }
 \keyword{internal}

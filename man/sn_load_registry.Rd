@@ -16,3 +16,11 @@ List of tool configurations.
 \description{
 Loads the built-in tool registry from YAML files.
 }
+\seealso{
+Other tool information: 
+\code{\link{sn_get_tool_config}()},
+\code{\link{sn_get_tool_info}()},
+\code{\link{sn_help}()},
+\code{\link{sn_list_tools}()}
+}
+\concept{tool information}

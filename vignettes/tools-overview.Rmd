@@ -1,0 +1,448 @@
+---
+title: "Tools Overview"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Tools Overview}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Available Bioinformatics Tools
+
+ShennongTools provides a comprehensive collection of pre-configured bioinformatics tools. Each tool comes with multiple commands and standardized parameters, making it easy to build reproducible workflows.
+
+## 🧬 Sequence Analysis Tools
+
+### FastP - FASTQ Quality Control
+
+FastP is an all-in-one FASTQ preprocessor for quality control and filtering.
+
+```{r fastp}
+library(ShennongTools)
+
+# Single-end read processing
+result <- sn_run("fastp", "filter",
+  input1 = "sample.fastq.gz",
+  output1 = "clean.fastq.gz",
+  html = "fastp_report.html",
+  json = "fastp_report.json",
+  threads = 8
+)
+
+# Paired-end read processing with adapter trimming
+result <- sn_run("fastp", "filter",
+  input1 = "sample_R1.fastq.gz",
+  input2 = "sample_R2.fastq.gz",
+  output1 = "clean_R1.fastq.gz",
+  output2 = "clean_R2.fastq.gz",
+  html = "fastp_report.html",
+  json = "fastp_report.json",
+  detect_adapter_for_pe = TRUE,
+  threads = 8
+)
+```
+
+### SeqKit - FASTA/Q Manipulation
+
+SeqKit provides ultrafast tools for FASTA/Q file processing.
+
+```{r seqkit}
+# Get basic statistics
+result <- sn_run("seqkit", "stats",
+  input = "sequences.fasta"
+)
+
+# Convert FASTQ to FASTA
+result <- sn_run("seqkit", "fq2fa",
+  input = "reads.fastq.gz",
+  output = "reads.fasta"
+)
+
+# Extract sequences by pattern
+result <- sn_run("seqkit", "grep",
+  input = "sequences.fasta",
+  output = "filtered.fasta",
+  pattern = "ATP"
+)
+```
+
+### SRA-Tools - NCBI Data Access
+
+Download and convert data from NCBI Sequence Read Archive.
+
+```{r sra_tools}
+# Download SRA data
+result <- sn_run("sra-tools", "prefetch",
+  accession = "SRR123456",
+  output_dir = "./sra_data"
+)
+
+# Convert SRA to FASTQ
+result <- sn_run("sra-tools", "fastq_dump",
+  input = "SRR123456.sra",
+  output_dir = "./fastq_files",
+  split_files = TRUE,
+  gzip = TRUE
+)
+```
+
+## 🗺️ Read Mapping & Alignment
+
+### HISAT2 - RNA-seq Alignment
+
+Fast and sensitive alignment program for mapping RNA-seq reads.
+
+```{r hisat2}
+# Build genome index
+result <- sn_run("hisat2", "build",
+  reference = "reference_genome.fa",
+  index_base = "genome_index",
+  threads = 8
+)
+
+# Align paired-end reads
+result <- sn_run("hisat2", "align",
+  index = "genome_index",
+  read1 = "sample_R1.fastq.gz",
+  read2 = "sample_R2.fastq.gz",
+  bam = "aligned.bam",
+  threads = 8,
+  summary_file = "alignment_summary.txt"
+)
+```
+
+### STAR - Universal RNA-seq Aligner
+
+Ultrafast universal RNA-seq aligner with splice junction detection.
+
+```{r star}
+# Generate genome index
+result <- sn_run("star", "generate_index",
+  genome_dir = "star_index",
+  genome_fasta = "reference.fa",
+  gtf = "annotations.gtf",
+  threads = 16,
+  sjdb_overhang = 99
+)
+
+# Align reads
+result <- sn_run("star", "align",
+  genome_dir = "star_index",
+  read1 = "sample_R1.fastq.gz",
+  read2 = "sample_R2.fastq.gz",
+  output_dir = "star_alignment",
+  threads = 16,
+  outSAMtype = "BAM SortedByCoordinate"
+)
+```
+
+## 🧮 Quantification & Assembly
+
+### Salmon - Transcript Quantification  
+
+Near-optimal probabilistic RNA-seq transcript quantification.
+
+```{r salmon}
+# Build transcript index
+result <- sn_run("salmon", "index",
+  transcripts = "transcripts.fa",
+  index = "salmon_index",
+  threads = 8
+)
+
+# Quantify paired-end reads
+result <- sn_run("salmon", "quant",
+  index = "salmon_index",
+  mates1 = "sample_R1.fastq.gz",
+  mates2 = "sample_R2.fastq.gz",
+  output = "salmon_quant",
+  threads = 8,
+  lib_type = "A"
+)
+```
+
+### Kallisto - RNA-seq Quantification
+
+Near-optimal probabilistic RNA-seq quantification without alignment.
+
+```{r kallisto}
+# Build transcript index
+result <- sn_run("kallisto", "index",
+  transcripts = "transcripts.fa",
+  index = "kallisto_index"
+)
+
+# Quantify reads
+result <- sn_run("kallisto", "quant",
+  index = "kallisto_index",
+  read1 = "sample_R1.fastq.gz",
+  read2 = "sample_R2.fastq.gz",
+  output_dir = "kallisto_output",
+  bootstrap_samples = 100,
+  threads = 8
+)
+```
+
+### StringTie - Transcript Assembly
+
+Transcript assembly and quantification for RNA-seq.
+
+```{r stringtie}
+# Assemble transcripts
+result <- sn_run("stringtie", "assemble",
+  input = "aligned.bam",
+  gtf = "reference.gtf",
+  output = "assembled.gtf",
+  threads = 8,
+  abundance = "abundance.tab"
+)
+
+# Merge transcript assemblies
+result <- sn_run("stringtie", "merge",
+  gtf_list = "gtf_files.txt",
+  reference_gtf = "reference.gtf",
+  output = "merged.gtf"
+)
+```
+
+## 🔧 File Processing Tools
+
+### SAMtools - SAM/BAM Processing
+
+Essential tools for manipulating SAM/BAM alignment files.
+
+```{r samtools}
+# Convert SAM to BAM and sort
+result <- sn_run("samtools", "view",
+  input = "alignment.sam",
+  output = "alignment.bam",
+  flags = "-Sb",
+  threads = 4
+)
+
+# Sort BAM file
+result <- sn_run("samtools", "sort",
+  input = "alignment.bam",
+  output = "sorted.bam",
+  threads = 4
+)
+
+# Index BAM file
+result <- sn_run("samtools", "index",
+  input = "sorted.bam"
+)
+
+# Get alignment statistics
+result <- sn_run("samtools", "stats",
+  input = "sorted.bam",
+  output = "alignment_stats.txt"
+)
+```
+
+### BEDtools - Genome Arithmetic
+
+Swiss-army knife for genome interval operations.
+
+```{r bedtools}
+# Find overlapping intervals
+result <- sn_run("bedtools", "intersect",
+  a = "peaks.bed",
+  b = "genes.bed",
+  output = "overlaps.bed"
+)
+
+# Get genomic coverage
+result <- sn_run("bedtools", "genomecov",
+  input = "alignment.bam",
+  genome = "genome.txt",
+  output = "coverage.bedgraph",
+  bg = TRUE
+)
+
+# Merge overlapping intervals
+result <- sn_run("bedtools", "merge",
+  input = "intervals.bed",
+  output = "merged.bed"
+)
+```
+
+### DeepTools - ChIP-seq/ATAC-seq Analysis
+
+Tools for exploring deep-sequencing data.
+
+```{r deeptools}
+# Create bigWig from BAM
+result <- sn_run("deeptools", "bamCoverage",
+  bam = "treatment.bam",
+  output = "coverage.bw",
+  binSize = 10,
+  threads = 8,
+  normalizeUsing = "RPKM"
+)
+
+# Compute matrix for plotting
+result <- sn_run("deeptools", "computeMatrix",
+  regions = "genes.bed",
+  scores = "coverage.bw",
+  output = "matrix.gz",
+  referencePoint = "TSS",
+  beforeRegionStartLength = 2000,
+  afterRegionStartLength = 2000
+)
+
+# Create heatmap
+result <- sn_run("deeptools", "plotHeatmap",
+  matrix = "matrix.gz",
+  output = "heatmap.png",
+  colorMap = "Blues"
+)
+```
+
+## 🎯 Specialized Analysis
+
+### MACS2 - Peak Calling
+
+Model-based Analysis for ChIP-seq peak calling.
+
+```{r macs2}
+# Call peaks from ChIP-seq data
+result <- sn_run("macs2", "callpeak",
+  treatment = "ChIP.bam",
+  control = "Input.bam",
+  name = "sample",
+  format = "BAM",
+  gsize = "hs", # human genome
+  qvalue = 0.01,
+  call_summits = TRUE,
+  bdg = TRUE
+)
+
+# Call broad peaks for histone marks
+result <- sn_run("macs2", "callpeak",
+  treatment = "H3K27me3.bam",
+  control = "Input.bam",
+  name = "H3K27me3",
+  format = "BAM",
+  gsize = "hs",
+  broad = TRUE,
+  broad_cutoff = 0.1
+)
+```
+
+### Kraken2 - Taxonomic Classification  
+
+Ultra-fast metagenomic sequence classification.
+
+```{r kraken2}
+# Classify reads against database
+result <- sn_run("kraken2", "classify",
+  input1 = "sample_R1.fastq.gz",
+  input2 = "sample_R2.fastq.gz",
+  database = "/path/to/kraken2_db",
+  output = "classifications.txt",
+  report = "kraken_report.txt",
+  threads = 8,
+  paired = TRUE
+)
+```
+
+### MultiQC - Report Aggregation
+
+Aggregate bioinformatics analysis results across samples.
+
+```{r multiqc}
+# Generate comprehensive QC report
+result <- sn_run("multiqc", "report",
+  input_dir = "analysis_results",
+  output_dir = "multiqc_report",
+  filename = "analysis_report.html",
+  title = "RNA-seq Analysis Report"
+)
+```
+
+## 🐍 Single-cell Analysis
+
+### Scanpy - Single-cell Python Analysis
+
+Single-cell analysis in Python with comprehensive preprocessing and analysis.
+
+```{r scanpy}
+# Basic single-cell preprocessing workflow
+result <- sn_run("scanpy", "preprocess",
+  input = "raw_counts.h5ad",
+  output = "preprocessed.h5ad",
+  min_genes = 200,
+  min_cells = 3,
+  max_genes = 5000,
+  mt_gene_names = "^MT-"
+)
+
+# Clustering and UMAP visualization
+result <- sn_run("scanpy", "cluster",
+  input = "preprocessed.h5ad",
+  output = "clustered.h5ad",
+  n_neighbors = 15,
+  n_pcs = 40,
+  resolution = 0.5
+)
+```
+
+### pySCENIC - Regulatory Network Inference
+
+Single-cell regulatory network inference and cell state prediction.
+
+```{r pyscenic}
+# Run SCENIC workflow
+result <- sn_run("pyscenic", "grn",
+  expression_mtx = "expression.tsv",
+  tf_names = "transcription_factors.txt",
+  output = "adjacencies.tsv",
+  num_workers = 8
+)
+
+result <- sn_run("pyscenic", "ctx",
+  adjacencies = "adjacencies.tsv",
+  database = "motif_database.feather",
+  output = "regulons.csv",
+  num_workers = 8
+)
+```
+
+## Getting Tool Help
+
+For any tool, you can get detailed help and see all available commands:
+
+```{r help}
+# Get overview of all tools
+sn_list_tools()
+
+# Get detailed help for a specific tool
+sn_help("samtools")
+
+# Get help for a specific command
+sn_help("samtools", "view")
+
+# See raw tool help output
+sn_help("samtools", raw = TRUE)
+```
+
+## Tool Configuration
+
+Each tool is defined by a YAML configuration file that specifies:
+
+- **Environment**: Conda dependencies and channels
+- **Commands**: Individual tool subcommands
+- **Parameters**: Input files, output files, and options
+- **Templates**: Shell or Python execution templates
+
+This standardized approach ensures consistent behavior across all tools while maintaining the flexibility to accommodate tool-specific requirements.
+
+For more information on creating custom tools, see the [YAML Specification](https://github.com/zerostwo/shennong-tools/blob/main/inst/tools/README.md). 

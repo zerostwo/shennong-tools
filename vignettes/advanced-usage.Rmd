@@ -1,0 +1,468 @@
+---
+title: "Advanced Usage"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Advanced Usage}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Advanced ShennongTools Usage
+
+This guide covers advanced features and power-user techniques for ShennongTools.
+
+## Custom Toolbox Management
+
+### Creating Custom Toolboxes
+
+```{r custom_toolbox}
+# Create a custom toolbox with specific base directory
+custom_toolbox <- sn_initialize_toolbox(base_dir = "/path/to/custom/tools")
+
+# Add tools to custom toolbox
+custom_toolbox <- sn_add_tool(custom_toolbox, "samtools", version = "1.19.2")
+custom_toolbox <- sn_add_tool(custom_toolbox, "hisat2", version = "2.2.1")
+
+# Use custom toolbox (requires manual management)
+# Note: sn_run() uses the default global toolbox
+```
+
+### Tool Installation Management
+
+```{r installation}
+# Install tool without running
+sn_install_tool("star", version = "2.7.11b")
+
+# Check installation status
+toolbox <- sn_initialize_toolbox()
+tool <- sn_get_tool(toolbox, "star")
+is_installed <- sn_is_tool_installed(tool, "2.7.11b")
+
+# Get all installed versions
+installed_versions <- sn_get_installed_versions(tool)
+print(installed_versions)
+
+# Validate installation
+is_valid <- sn_validate_tool("star", version = "2.7.11b")
+```
+
+## Environment and Version Management
+
+### Working with Multiple Versions
+
+```{r versions}
+# List available versions for a tool
+sn_help("samtools") # Shows available versions
+
+# Use specific version
+result <- sn_run("samtools", "view",
+  input = "file.bam",
+  output = "filtered.bam",
+  version = "1.19.2",
+  flags = "-q 30"
+)
+
+# Check what version was actually used
+print(result@tool_version)
+```
+
+### Environment Information
+
+```{r env_info}
+# Get environment details
+result <- sn_run("samtools", "view",
+  input = "test.bam",
+  dry_run = TRUE
+)
+
+# Environment path is shown in dry run output
+# You can also access the toolbox directly
+toolbox <- sn_initialize_toolbox()
+env_path <- file.path(toolbox@base_dir, "samtools", "1.19.2")
+print(env_path)
+```
+
+## Advanced Logging and Monitoring
+
+### Detailed Resource Monitoring
+
+```{r monitoring}
+# Run with detailed monitoring
+result <- sn_run("star", "align",
+  genome_dir = "star_index",
+  read1 = "sample_R1.fastq.gz",
+  read2 = "sample_R2.fastq.gz",
+  output_dir = "star_output",
+  threads = 16,
+  log_level = "normal"
+)
+
+# Comprehensive resource information
+resources <- result@resources
+cat("Command:", result@rendered_command, "\n")
+cat("Exit Code:", resources$exit_code, "\n")
+cat("Runtime:", resources$runtime_seconds, "seconds\n")
+cat("Peak Memory:", resources$peak_memory_mb, "MB\n")
+cat("CPU Usage:", resources$cpu_percent, "%\n")
+
+# Timestamps
+cat("Started:", result@start_time, "\n")
+cat("Finished:", result@end_time, "\n")
+```
+
+### Custom Log Management
+
+```{r custom_logging}
+# Set global log directory
+sn_options(log_dir = "/path/to/analysis/logs")
+
+# Per-command log directory
+result <- sn_run("hisat2", "align",
+  index = "genome_index",
+  read1 = "sample_R1.fastq.gz",
+  read2 = "sample_R2.fastq.gz",
+  bam = "aligned.bam",
+  log_dir = "./hisat2_logs",
+  log_level = "normal"
+)
+
+# Access log file path
+log_file <- result@log_file
+cat("Log saved to:", log_file, "\n")
+```
+
+## Template System Deep Dive
+
+### Testing Templates
+
+```{r template_testing}
+# Test a custom template
+template <- "{{ binary }} view -@ {{ threads }} {{ input }} -o {{ output }}"
+test_params <- list(
+  binary = "samtools",
+  threads = 4,
+  input = "test.bam",
+  output = "filtered.bam"
+)
+
+rendered <- sn_test_template(template, test_params)
+print(rendered)
+```
+
+### Understanding Parameter Resolution
+
+```{r param_resolution}
+# Parameters are resolved in this order:
+# 1. User-provided parameters
+# 2. Command defaults from YAML
+# 3. Automatic parameter generation (binary, version, etc.)
+
+# Example: See what parameters are actually used
+result <- sn_run("samtools", "view",
+  input = "test.bam",
+  dry_run = TRUE,
+  log_level = "normal" # Shows parameter resolution
+)
+```
+
+## Workflow Integration
+
+### Building Analysis Pipelines
+
+```{r pipeline}
+# Create a complete RNA-seq processing pipeline
+process_rnaseq <- function(sample_name, read1, read2, genome_index, gtf) {
+  # 1. Quality control
+  qc_result <- sn_run("fastp", "filter",
+    input1 = read1,
+    input2 = read2,
+    output1 = paste0(sample_name, "_clean_R1.fastq.gz"),
+    output2 = paste0(sample_name, "_clean_R2.fastq.gz"),
+    html = paste0(sample_name, "_fastp.html"),
+    json = paste0(sample_name, "_fastp.json"),
+    threads = 8
+  )
+
+  if (!sn_is_toolcall_success(qc_result)) {
+    stop("Quality control failed for ", sample_name)
+  }
+
+  # 2. Alignment
+  align_result <- sn_run("hisat2", "align",
+    index = genome_index,
+    read1 = paste0(sample_name, "_clean_R1.fastq.gz"),
+    read2 = paste0(sample_name, "_clean_R2.fastq.gz"),
+    bam = paste0(sample_name, "_aligned.bam"),
+    threads = 8,
+    summary_file = paste0(sample_name, "_summary.txt")
+  )
+
+  if (!sn_is_toolcall_success(align_result)) {
+    stop("Alignment failed for ", sample_name)
+  }
+
+  # 3. Sort and index
+  sort_result <- sn_run("samtools", "sort",
+    input = paste0(sample_name, "_aligned.bam"),
+    output = paste0(sample_name, "_sorted.bam"),
+    threads = 4
+  )
+
+  sn_run("samtools", "index", input = paste0(sample_name, "_sorted.bam"))
+
+  # 4. Quantification
+  quant_result <- sn_run("stringtie", "assemble",
+    input = paste0(sample_name, "_sorted.bam"),
+    gtf = gtf,
+    output = paste0(sample_name, "_assembled.gtf"),
+    abundance = paste0(sample_name, "_abundance.tab"),
+    threads = 8
+  )
+
+  return(list(
+    qc = qc_result,
+    alignment = align_result,
+    sorting = sort_result,
+    quantification = quant_result
+  ))
+}
+
+# Use the pipeline
+results <- process_rnaseq(
+  sample_name = "sample1",
+  read1 = "sample1_R1.fastq.gz",
+  read2 = "sample1_R2.fastq.gz",
+  genome_index = "genome_index",
+  gtf = "annotations.gtf"
+)
+```
+
+### Parallel Processing
+
+```{r parallel}
+# Process multiple samples in parallel
+library(parallel)
+
+samples <- data.frame(
+  name = c("sample1", "sample2", "sample3"),
+  read1 = c("s1_R1.fastq.gz", "s2_R1.fastq.gz", "s3_R1.fastq.gz"),
+  read2 = c("s1_R2.fastq.gz", "s2_R2.fastq.gz", "s3_R2.fastq.gz")
+)
+
+# Set up cluster
+cl <- makeCluster(3)
+clusterEvalQ(cl, library(ShennongTools))
+
+# Process samples in parallel
+results <- parLapply(cl, 1:nrow(samples), function(i) {
+  row <- samples[i, ]
+
+  # Quality control for each sample
+  sn_run("fastp", "filter",
+    input1 = row$read1,
+    input2 = row$read2,
+    output1 = paste0(row$name, "_clean_R1.fastq.gz"),
+    output2 = paste0(row$name, "_clean_R2.fastq.gz"),
+    html = paste0(row$name, "_fastp.html"),
+    threads = 2 # Reduced threads per job
+  )
+})
+
+stopCluster(cl)
+```
+
+## Error Handling and Debugging
+
+### Robust Error Handling
+
+```{r error_handling}
+# Wrap tool calls in error handling
+safe_run <- function(tool, command, ..., max_retries = 3) {
+  for (attempt in 1:max_retries) {
+    tryCatch(
+      {
+        result <- sn_run(tool, command, ...)
+
+        if (sn_is_toolcall_success(result)) {
+          return(result)
+        } else {
+          warning(
+            "Command failed on attempt ", attempt,
+            ", exit code: ", result@resources$exit_code
+          )
+        }
+      },
+      error = function(e) {
+        warning("Error on attempt ", attempt, ": ", e$message)
+      }
+    )
+
+    if (attempt < max_retries) {
+      Sys.sleep(2^attempt) # Exponential backoff
+    }
+  }
+
+  stop("Command failed after ", max_retries, " attempts")
+}
+
+# Use safe wrapper
+result <- safe_run("samtools", "view",
+  input = "problematic.bam",
+  output = "output.bam",
+  flags = "-q 30"
+)
+```
+
+### Debugging Failed Commands
+
+```{r debugging}
+# When a command fails, inspect the details
+result <- sn_run("star", "align",
+  genome_dir = "star_index",
+  read1 = "sample_R1.fastq.gz",
+  read2 = "sample_R2.fastq.gz",
+  output_dir = "star_output"
+)
+
+if (!sn_is_toolcall_success(result)) {
+  # Check exit code
+  cat("Exit code:", result@resources$exit_code, "\n")
+
+  # Check rendered command
+  cat("Command:", result@rendered_command, "\n")
+
+  # Check log file
+  cat("Log file:", result@log_file, "\n")
+
+  # Read log contents
+  if (file.exists(result@log_file)) {
+    log_contents <- readLines(result@log_file)
+    cat("Last 10 lines of log:\n")
+    cat(tail(log_contents, 10), sep = "\n")
+  }
+}
+```
+
+## Performance Optimization
+
+### Resource Optimization
+
+```{r optimization}
+# Monitor system resources before running heavy jobs
+system_info <- function() {
+  list(
+    cpu_cores = parallel::detectCores(),
+    memory_gb = as.numeric(system("free -g | awk '/^Mem:/{print $2}'", intern = TRUE)),
+    disk_space = system("df -h . | awk 'NR==2{print $4}'", intern = TRUE)
+  )
+}
+
+info <- system_info()
+cat("Available cores:", info$cpu_cores, "\n")
+cat("Available memory:", info$memory_gb, "GB\n")
+cat("Available disk:", info$disk_space, "\n")
+
+# Adjust thread counts based on system resources
+optimal_threads <- min(info$cpu_cores - 1, 16) # Leave one core free, max 16
+
+result <- sn_run("star", "align",
+  genome_dir = "star_index",
+  read1 = "sample_R1.fastq.gz",
+  read2 = "sample_R2.fastq.gz",
+  output_dir = "star_output",
+  threads = optimal_threads
+)
+```
+
+### Batch Processing Strategies
+
+```{r batch_processing}
+# Process files in batches to manage memory
+process_batch <- function(files, batch_size = 5) {
+  results <- list()
+
+  for (i in seq(1, length(files), batch_size)) {
+    batch_end <- min(i + batch_size - 1, length(files))
+    batch_files <- files[i:batch_end]
+
+    cat(
+      "Processing batch", ceiling(i / batch_size),
+      ":", length(batch_files), "files\n"
+    )
+
+    batch_results <- lapply(batch_files, function(file) {
+      sn_run("seqkit", "stats", input = file)
+    })
+
+    results <- c(results, batch_results)
+
+    # Clean up memory between batches
+    gc()
+  }
+
+  return(results)
+}
+
+# Use batch processing
+fasta_files <- list.files(pattern = "\\.fa$", full.names = TRUE)
+results <- process_batch(fasta_files, batch_size = 3)
+```
+
+## Integration with Other R Packages
+
+### With Bioconductor
+
+```{r bioconductor}
+# Example: Integrate with GenomicRanges
+library(GenomicRanges)
+library(rtracklayer)
+
+# Use ShennongTools to create coverage, then import to R
+sn_run("deeptools", "bamCoverage",
+  bam = "aligned.bam",
+  output = "coverage.bw",
+  binSize = 10,
+  threads = 8
+)
+
+# Import the bigWig file into R
+coverage <- import("coverage.bw", format = "BigWig")
+print(coverage)
+```
+
+### With data.table/dplyr
+
+```{r data_processing}
+library(data.table)
+
+# Process multiple samples and collect results
+samples <- c("sample1", "sample2", "sample3")
+
+results_dt <- rbindlist(lapply(samples, function(sample) {
+  result <- sn_run("seqkit", "stats",
+    input = paste0(sample, ".fasta"),
+    log_level = "silent"
+  )
+
+  # Parse tool output (would need actual output format)
+  # This is a simplified example
+  data.table(
+    sample = sample,
+    runtime = sn_get_toolcall_runtime(result),
+    success = sn_is_toolcall_success(result),
+    memory_mb = result@resources$peak_memory_mb
+  )
+}))
+
+print(results_dt)
+```
+
+This advanced guide covers the power-user features of ShennongTools. With these techniques, you can build robust, scalable bioinformatics workflows that integrate seamlessly with the broader R ecosystem. 

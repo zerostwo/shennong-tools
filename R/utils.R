@@ -9,6 +9,8 @@
 #' @param ... Additional options to set.
 #'
 #' @return If no arguments provided, returns current options. Otherwise invisibly returns the previous values.
+#' @family core functions
+#' @concept core functions
 #' @export
 #'
 #' @examples
@@ -45,7 +47,7 @@ sn_options <- function(log_level = NULL, log_dir = NULL, ...) {
     # Validate log_level
     tryCatch(
       {
-        .sn_normalize_log_level(log_level)
+        .normalize_log_level(log_level)
         new_opts$sn.log_level <- log_level
       },
       error = function(e) {
@@ -76,103 +78,6 @@ sn_options <- function(log_level = NULL, log_dir = NULL, ...) {
   }
 
   invisible(current_opts)
-}
-
-#' Validate Tool Environment
-#'
-#' Check if a tool is properly installed and available.
-#'
-#' @param tool Character. Tool name.
-#' @param registry List. Tool registry (optional).
-#' @param env_path Character. Environment path (optional).
-#'
-#' @return Logical. TRUE if tool is available, FALSE otherwise.
-#' @export
-sn_validate_tool <- function(tool, registry = NULL, env_path = NULL) {
-  if (is.null(registry)) {
-    registry <- sn_load_registry()
-  }
-
-  tool_config <- sn_get_tool_config(tool, registry)
-
-  if (is.null(env_path)) {
-    env_path <- .sn_find_tool_env(tool, tool_config)
-  }
-
-  if (is.null(env_path)) {
-    cli_alert_danger("Tool '{tool}' environment not found")
-    return(FALSE)
-  }
-
-  # Check if environment directory exists
-  if (!dir_exists(env_path)) {
-    cli_alert_danger("Environment path does not exist: {env_path}")
-    return(FALSE)
-  }
-
-  # Check if binaries are available
-  all_binaries_found <- TRUE
-  for (cmd_name in names(tool_config$commands)) {
-    cmd_config <- tool_config$commands[[cmd_name]]
-    binary_path <- path(env_path, "bin", cmd_config$binary)
-
-    if (!file_exists(binary_path)) {
-      cli_alert_warning("Binary '{cmd_config$binary}' not found for command '{cmd_name}'")
-      all_binaries_found <- FALSE
-    }
-  }
-
-  if (all_binaries_found) {
-    cli_alert_success("Tool '{tool}' is properly installed at {env_path}")
-    return(TRUE)
-  } else {
-    cli_alert_danger("Tool '{tool}' installation incomplete")
-    return(FALSE)
-  }
-}
-
-#' Initialize Package
-#'
-#' Initialize the ShennongTools package by checking dependencies and
-#' loading the tool registry.
-#'
-#' @param check_mamba Logical. Whether to check mamba/micromamba installation.
-#'
-#' @return List with initialization status.
-#' @export
-sn_initialize <- function(check_mamba = TRUE) {
-  cli_h1("Initializing ShennongTools")
-
-  # Load registry
-  cli_alert_info("Loading tool registry...")
-  registry <- sn_load_registry()
-
-  # Check mamba if requested
-  mamba_status <- if (check_mamba) {
-    tryCatch(
-      {
-        mamba_path <- .check_mamba()
-        cli_alert_success("Mamba/micromamba found at: {mamba_path}")
-        TRUE
-      },
-      error = function(e) {
-        cli_alert_warning("Mamba/micromamba not found: {e$message}")
-        FALSE
-      }
-    )
-  } else {
-    NULL
-  }
-
-  cli_alert_success("Package initialized successfully!")
-  cli_alert_info("Use sn_list_available_tools() to see available tools")
-  cli_alert_info("Use sn_help('tool_name') for tool help")
-
-  invisible(list(
-    registry = registry,
-    mamba_available = mamba_status,
-    tools_count = length(registry)
-  ))
 }
 
 #' Format File Size
@@ -249,62 +154,23 @@ sn_initialize <- function(check_mamba = TRUE) {
   }
 }
 
-#' Null Default Operator
-#'
-#' Returns right-hand side if left-hand side is NULL.
-#'
-#' @param x Left-hand side value.
-#' @param y Right-hand side value.
-#'
-#' @return x if not NULL, otherwise y.
-#' @keywords internal
-`%||%` <- function(x, y) {
-  if (is.null(x)) y else x
-}
-
-#' Find Tool Environment Path
-#'
-#' Find the installation path for a tool environment.
-#'
-#' @param tool_name Character. Name of the tool.
-#' @param tool_config List. Tool configuration.
-#'
-#' @return Character. Path to tool environment or NULL if not found.
-#' @keywords internal
-.sn_find_tool_env <- function(tool_name, tool_config) {
-  # This is a placeholder function that should work with the existing toolbox system
-  # In the actual implementation, this would integrate with the toolbox structure
-  base_dir <- R_user_dir(package = "shennong-tools", which = "data")
-
-  # Try both naming schemes
-  env_path1 <- file.path(base_dir, tool_name)
-  env_path2 <- file.path(base_dir, paste0(tool_name, "_latest"))
-
-  if (dir.exists(env_path1)) {
-    return(env_path1)
-  } else if (dir.exists(env_path2)) {
-    return(env_path2)
-  } else {
-    return(NULL)
-  }
-}
-
 #' Normalize Log Level
-#'
-#' Convert log level to numeric value.
-#'
-#' @param log_level Character or integer. Log level.
-#'
-#' @return Integer. Numeric log level.
 #' @keywords internal
-.sn_normalize_log_level <- function(log_level) {
+.normalize_log_level <- function(log_level) {
+  # Validate log_level parameter
+  valid_levels <- c("silent", "quiet", "minimal", "normal", 0, 1, 2)
+
+  if (!log_level %in% valid_levels) {
+    cli_abort("Invalid log_level: {log_level}. Must be one of: 'silent'/'quiet'/0, 'minimal'/1, 'normal'/2")
+  }
+
   if (is.character(log_level)) {
     switch(log_level,
       "silent" = 0,
       "quiet" = 0,
       "minimal" = 1,
       "normal" = 2,
-      2 # default
+      1 # This line should never be reached due to validation above
     )
   } else {
     as.integer(log_level)
@@ -395,7 +261,7 @@ sn_initialize <- function(check_mamba = TRUE) {
 #' @param tool_name Optional tool name to load tool-specific datatypes
 #' @return List containing file_types and value_types definitions
 #' @keywords internal
-.sn_load_datatypes <- function(tool_name = NULL) {
+.load_datatypes <- function(tool_name = NULL) {
   # Load global datatypes
   global_datatypes_path <- system.file("config", "datatypes.yaml", package = "ShennongTools")
 
@@ -403,14 +269,14 @@ sn_initialize <- function(check_mamba = TRUE) {
     stop("Global datatypes.yaml not found at: ", global_datatypes_path)
   }
 
-  global_datatypes <- yaml::read_yaml(global_datatypes_path)
+  global_datatypes <- read_yaml(global_datatypes_path)
 
   # Load tool-specific datatypes if specified
   if (!is.null(tool_name)) {
     tool_datatypes_path <- system.file("tools", tool_name, "datatypes.yaml", package = "ShennongTools")
 
     if (file.exists(tool_datatypes_path)) {
-      tool_datatypes <- yaml::read_yaml(tool_datatypes_path)
+      tool_datatypes <- read_yaml(tool_datatypes_path)
 
       # Merge tool-specific datatypes with global ones (tool-specific takes precedence)
       if (!is.null(tool_datatypes$file_types)) {
@@ -428,22 +294,26 @@ sn_initialize <- function(check_mamba = TRUE) {
 #' Get Example Value for Datatype
 #' @description Get the example value for a given datatype from the datatype registry
 #' @param datatype The datatype name
+#' @param param_name The parameter name (for context-aware examples)
 #' @param tool_name Optional tool name for tool-specific datatypes
 #' @param input_output Whether this is for "input" or "output" (affects path prefix)
 #' @return Character string with example value
 #' @keywords internal
-.sn_get_example_value <- function(datatype, tool_name = NULL, input_output = "input") {
+.get_example_value <- function(datatype, param_name = NULL, tool_name = NULL, input_output = "input") {
   # Handle datatype as vector (take first one)
   if (length(datatype) > 1) {
     datatype <- datatype[1]
   }
 
-  datatypes <- .sn_load_datatypes(tool_name)
+  datatypes <- .load_datatypes(tool_name)
 
   # Check in file_types first
   if (!is.null(datatypes$file_types[[datatype]])) {
     example_val <- datatypes$file_types[[datatype]]$example_value
     if (!is.null(example_val)) {
+      # Apply smart naming based on parameter name
+      example_val <- .apply_smart_naming(example_val, param_name, datatype, input_output)
+
       # Adjust path prefix for outputs
       if (input_output == "output" && grepl("^path/to/", example_val)) {
         example_val <- gsub("^path/to/", "output/", example_val)
@@ -470,13 +340,13 @@ sn_initialize <- function(check_mamba = TRUE) {
 #' @param tool_name Optional tool name for tool-specific datatypes
 #' @return TRUE if valid, FALSE otherwise
 #' @keywords internal
-.sn_validate_datatype <- function(datatype, tool_name = NULL) {
+.validate_datatype <- function(datatype, tool_name = NULL) {
   # Handle datatype as vector
   if (length(datatype) > 1) {
-    return(all(sapply(datatype, function(dt) .sn_validate_datatype(dt, tool_name))))
+    return(all(sapply(datatype, function(dt) .validate_datatype(dt, tool_name))))
   }
 
-  datatypes <- .sn_load_datatypes(tool_name)
+  datatypes <- .load_datatypes(tool_name)
 
   # Check if datatype exists in file_types or value_types
   exists_in_file_types <- !is.null(datatypes$file_types[[datatype]])
@@ -492,7 +362,7 @@ sn_initialize <- function(check_mamba = TRUE) {
 #' @param tool_name Tool name
 #' @return Character string with usage example
 #' @keywords internal
-.sn_generate_usage_example <- function(cmd_config, command_name, tool_name) {
+.generate_usage_example <- function(cmd_config, command_name, tool_name) {
   # Collect all parameters
   example_params <- list()
 
@@ -502,7 +372,7 @@ sn_initialize <- function(check_mamba = TRUE) {
       input_def <- cmd_config$inputs[[input_name]]
       datatype <- input_def$datatype %||% "string"
 
-      example_value <- .sn_get_example_value(datatype, tool_name, "input")
+      example_value <- .get_example_value(datatype, input_name, tool_name, "input")
       example_params[[input_name]] <- example_value
     }
   }
@@ -513,7 +383,7 @@ sn_initialize <- function(check_mamba = TRUE) {
       output_def <- cmd_config$outputs[[output_name]]
       datatype <- output_def$datatype %||% "string"
 
-      example_value <- .sn_get_example_value(datatype, tool_name, "output")
+      example_value <- .get_example_value(datatype, output_name, tool_name, "output")
       example_params[[output_name]] <- example_value
     }
   }
@@ -534,7 +404,7 @@ sn_initialize <- function(check_mamba = TRUE) {
       } else {
         # Generate example based on datatype
         datatype <- param_def$datatype %||% "string"
-        example_value <- .sn_get_example_value(datatype, tool_name, "param")
+        example_value <- .get_example_value(datatype, param_name, tool_name, "param")
         example_params[[param_name]] <- example_value
       }
     }
@@ -563,4 +433,97 @@ sn_initialize <- function(check_mamba = TRUE) {
     result <- paste0(result, "\n)")
     return(result)
   }
+}
+
+#' Apply Smart Naming to Example Values
+#' @description Generate context-aware example file names based on parameter names
+#' @param example_val Base example value from datatype config
+#' @param param_name Parameter name (for context)
+#' @param datatype File datatype
+#' @param input_output Whether this is for "input" or "output"
+#' @return Character string with context-aware example value
+#' @keywords internal
+.apply_smart_naming <- function(example_val, param_name, datatype, input_output) {
+  if (is.null(param_name) || !is.character(param_name)) {
+    return(example_val)
+  }
+
+  # Convert to lowercase for pattern matching
+  param_lower <- tolower(param_name)
+
+  # Pattern matching for FASTQ files
+  if (datatype == "fastq") {
+    # For paired-end sequencing files
+    if (grepl("input1|read1|r1", param_lower)) {
+      return(gsub("reads\\.fastq\\.gz", "read1.fastq.gz", example_val))
+    } else if (grepl("input2|read2|r2", param_lower)) {
+      return(gsub("reads\\.fastq\\.gz", "read2.fastq.gz", example_val))
+    } else if (grepl("forward|fwd", param_lower)) {
+      return(gsub("reads\\.fastq\\.gz", "forward.fastq.gz", example_val))
+    } else if (grepl("reverse|rev", param_lower)) {
+      return(gsub("reads\\.fastq\\.gz", "reverse.fastq.gz", example_val))
+    }
+  }
+
+  # Pattern matching for BAM files
+  if (datatype == "bam") {
+    if (grepl("input1|primary", param_lower)) {
+      return(gsub("alignment\\.bam", "input1.bam", example_val))
+    } else if (grepl("input2|secondary", param_lower)) {
+      return(gsub("alignment\\.bam", "input2.bam", example_val))
+    } else if (grepl("sorted", param_lower)) {
+      return(gsub("alignment\\.bam", "sorted.bam", example_val))
+    }
+  }
+
+  # Pattern matching for output files
+  if (input_output == "output") {
+    if (grepl("output1|out1|result1", param_lower)) {
+      base_name <- basename(example_val)
+      dir_name <- dirname(example_val)
+      base_name <- gsub("^([^.]+)", "\\1_1", base_name)
+      return(file.path(dir_name, base_name))
+    } else if (grepl("output2|out2|result2", param_lower)) {
+      base_name <- basename(example_val)
+      dir_name <- dirname(example_val)
+      base_name <- gsub("^([^.]+)", "\\1_2", base_name)
+      return(file.path(dir_name, base_name))
+    } else if (grepl("log|report", param_lower) && datatype %in% c("txt", "html", "json")) {
+      return(gsub("config\\.", "report.", example_val))
+    }
+  }
+
+  # Pattern matching for FASTA files
+  if (datatype == "fasta") {
+    if (grepl("reference|ref|genome", param_lower)) {
+      return(gsub("genome\\.fa", "reference.fa", example_val))
+    } else if (grepl("query|input", param_lower)) {
+      return(gsub("genome\\.fa", "query.fa", example_val))
+    }
+  }
+
+  # Pattern matching for index files
+  if (datatype %in% c("index", "prefix")) {
+    if (grepl("index|idx", param_lower)) {
+      return(gsub("prefix", "index", example_val))
+    } else if (grepl("reference|ref", param_lower)) {
+      return(gsub("prefix", "reference", example_val))
+    }
+  }
+
+  # For numbered parameters (general case)
+  if (grepl("1$", param_name)) {
+    base_name <- basename(example_val)
+    dir_name <- dirname(example_val)
+    base_name <- gsub("^([^.]+)", "\\1_1", base_name)
+    return(file.path(dir_name, base_name))
+  } else if (grepl("2$", param_name)) {
+    base_name <- basename(example_val)
+    dir_name <- dirname(example_val)
+    base_name <- gsub("^([^.]+)", "\\1_2", base_name)
+    return(file.path(dir_name, base_name))
+  }
+
+  # Default: return original value
+  return(example_val)
 }

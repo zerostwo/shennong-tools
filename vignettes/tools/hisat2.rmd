@@ -1,0 +1,161 @@
+---
+title: "Hisat2"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Hisat2}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Hisat2
+
+Fast and sensitive alignment of sequencing reads to a population of genomes
+
+## Citation
+
+**Citation:** 10.1038/nmeth.3317
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- hisat2
+- samtools
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("hisat2", "index", ...)
+```
+
+## Available Commands
+
+### index
+
+Build HISAT2 index from a reference genome FASTA file
+
+**Basic Usage:**
+
+```r
+result <- sn_run("hisat2", "index",
+  # Add your parameters here
+)
+```
+
+### align
+
+Align reads to reference genome and convert output to BAM
+
+**Basic Usage:**
+
+```r
+result <- sn_run("hisat2", "align",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Index Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("hisat2", "index",
+  fasta = "sequences.fasta",
+  index = "genome_index",
+  threads = 8
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Align Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("hisat2", "align",
+  read1 = "sample_R1.fastq.gz",
+  index = "genome_index",
+  bam = "alignment.bam",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### index Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fasta` | fasta | Yes | Input reference genome FASTA file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `index` | prefix | Yes | HISAT2 index files basename prefix |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 8 | Number of threads to use |
+
+### align Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `read1` | fastq | Yes | FASTQ file for read 1 or single-end reads |
+| `read2` | fastq | No | FASTQ file for read 2 (for paired-end reads, optional) |
+| `index` | prefix | Yes | Index filename prefix (minus trailing .X.ht2) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `bam` | bam | Yes | Output BAM file path |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `threads` | integer | 4 | Number of threads to use |
+

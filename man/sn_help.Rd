@@ -35,3 +35,11 @@ sn_help("samtools", "view")
 sn_help("samtools", raw = TRUE)
 }
 }
+\seealso{
+Other tool information: 
+\code{\link{sn_get_tool_config}()},
+\code{\link{sn_get_tool_info}()},
+\code{\link{sn_list_tools}()},
+\code{\link{sn_load_registry}()}
+}
+\concept{tool information}

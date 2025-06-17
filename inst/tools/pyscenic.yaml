@@ -1,0 +1,134 @@
+tool_name: pyscenic
+description: pySCENIC is a python implementation of the SCENIC pipeline to infer gene regulatory networks from single-cell RNA-seq data.
+citation: 10.1038/nmeth.4463
+
+environment:
+  channels:
+    - conda-forge
+    - bioconda
+  dependencies:
+    - python=3.10
+    - numpy<1.24
+    - numba<0.57
+    - setuptools<80
+    - pip:
+        - pyscenic
+
+commands:
+  grn:
+    description: Infer co-expression modules using GRNBoost2
+    binary: pyscenic
+    help_flag: --help
+
+    inputs:
+      expression:
+        datatype: [loom, csv]
+        required: true
+        description: "The name of the file that contains the expression matrix for the single cell experiment. Two file formats are supported: csv (rows=cells x columns=genes) or loom (rows=genes x columns=cells)."
+      tf_list:
+        datatype: txt
+        required: true
+        description: "The name of the file that contains the list of transcription factors (TXT; one TF per line)."
+
+    outputs:
+      adjacencies:
+        datatype: csv
+        required: true
+        description: "Output file/stream, i.e. a table of TF-target genes (CSV)."
+
+    params:
+      transpose:
+        datatype: boolean
+        default: false
+        description: "Transpose the expression matrix (rows=genes x columns=cells)."
+      seed:
+        datatype: integer
+        default: 42
+        description: "RSeed value for regressor random state initialization. Applies to both GENIE3 and GRNBoost2. The default is to use a random seed."
+      method:
+        datatype: string
+        default: grnboost2
+        description: Method for GRN inference (grnboost2 or genie3)
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads to use
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional arguments to pass to the pyscenic command."
+
+    shell: >
+      pyscenic grn --method {{ method }} --num_workers {{ threads }}
+      {% if transpose %}--transpose{% endif %}
+      {{ expression }} {{ tf_list }} {{ adjacencies }} {{ extras }}
+
+  ctx:
+    description: Prune GRNs using motif enrichment (cisTarget)
+    binary: pyscenic
+    help_flag: --help
+
+    inputs:
+      adjacencies:
+        datatype: csv
+        required: true
+        description: Adjacency matrix from GRN step
+      motifs:
+        datatype: feather
+        required: true
+        description: Motif ranking databases
+
+    outputs:
+      regulons:
+        datatype: csv
+        required: true
+        description: Output file containing regulons
+
+    params:
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads to use
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional arguments to pass to the pyscenic command."
+
+    shell: >
+      {{ binary }} ctx {{ adjacencies }} {{ motifs }}
+      --output {{ regulons }} --num_workers {{ threads }} {{ extras }}
+
+  aucell:
+    description: Score regulons using AUCell
+    binary: pyscenic
+    help_flag: --help
+
+    inputs:
+      expression:
+        datatype: loom
+        required: true
+        description: Expression matrix (loom)
+      regulons:
+        datatype: csv
+        required: true
+        description: File containing regulons
+
+    outputs:
+      auc_matrix:
+        datatype: loom
+        required: true
+        description: AUCell matrix saved as loom
+
+    params:
+      threads:
+        datatype: integer
+        default: 4
+        description: Number of threads to use
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional arguments to pass to the pyscenic command."
+
+    shell: >
+      {{ binary }} aucell {{ expression }} {{ regulons }}
+      --output {{ auc_matrix }} --num_workers {{ threads }} {{ extras }}

@@ -14,7 +14,7 @@ Description:
     output handling. Tools are modeled as S4 objects and organized into toolboxes,
     making the system scalable, composable, and suitable for high-throughput workflows.
 License: MIT + file LICENSE
-URL: https://github.com/zerostwo/shennong-tools
+URL: https://songqi.org/shennong-tools, https://github.com/zerostwo/shennong-tools
 BugReports: https://github.com/zerostwo/shennong-tools/issues
 Encoding: UTF-8
 RoxygenNote: 7.3.2
@@ -38,12 +38,15 @@ Suggests:
 Config/testthat/edition: 3
 Collate: 
     'AllClasses.R'
+    'data.R'
     'environment.R'
     'generics.R'
     'help.R'
+    'mockdata.R'
     'registry.R'
     'run.R'
     'template.R'
     'toolbox.R'
     'utils.R'
     'zzz.R'
+LazyData: true

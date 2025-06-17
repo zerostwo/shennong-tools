@@ -40,3 +40,9 @@ params <- list(input_h5ad = "data.h5ad")
 rendered <- sn_render_python_template(python_code, params, inputs, outputs, cmd_config)
 }
 }
+\seealso{
+Other template system: 
+\code{\link{sn_render_template}()},
+\code{\link{sn_test_template}()}
+}
+\concept{template system}

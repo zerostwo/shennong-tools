@@ -1,0 +1,167 @@
+---
+title: "Salmon"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Salmon}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Salmon
+
+A tool for transcript-level quantification from RNA-seq data using quasi-mapping
+
+## Citation
+
+**Citation:** 10.1038/nmeth.4197
+
+## Environment
+
+This tool uses the following conda environment:
+
+**Channels:**
+- conda-forge
+- bioconda
+
+**Dependencies:**
+- salmon
+
+## Installation
+
+This tool will be automatically installed when first used:
+
+```r
+library(ShennongTools)
+
+# Tool will be installed automatically on first use
+result <- sn_run("salmon", "index", ...)
+```
+
+## Available Commands
+
+### index
+
+Build a Salmon transcriptome index
+
+**Basic Usage:**
+
+```r
+result <- sn_run("salmon", "index",
+  # Add your parameters here
+)
+```
+
+### quant
+
+Quantify transcript abundances using a Salmon index
+
+**Basic Usage:**
+
+```r
+result <- sn_run("salmon", "quant",
+  # Add your parameters here
+)
+```
+
+## Examples
+
+### Index Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("salmon", "index",
+  transcriptome = "sequences.fasta",
+  index_dir = "genome_index",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+### Quant Example
+
+```r
+library(ShennongTools)
+
+result <- sn_run("salmon", "quant",
+  index_dir = "genome_index",
+  read1 = "sample_R1.fastq.gz",
+  quant_dir = "example_file",
+  threads = 4
+)
+
+# Check if successful
+if (sn_is_toolcall_success(result)) {
+  cat("Command completed successfully!\n")
+} else {
+  cat("Command failed. Check logs:\n")
+  cat(readLines(result@log_file), sep = "\n")
+}
+```
+
+## Parameters Reference
+
+### index Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `transcriptome` | fasta | Yes | Transcriptome FASTA file |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `index_dir` | directory | Yes | Output directory to store the index |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | string | "quasi" | Type of index to build (quasi or fmd) |
+| `kmer` | integer | 31 | K-mer size |
+| `threads` | integer | 4 | Number of threads |
+| `extras` | string | "" | Extra options |
+
+### quant Parameters
+
+**Inputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `index_dir` | directory | Yes | Path to Salmon index directory |
+| `read1` | fastq | Yes | Read 1 FASTQ file |
+| `read2` | fastq | No | Read 2 FASTQ file (for paired-end) |
+
+**Outputs:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `quant_dir` | directory | Yes | Output directory for quantification results |
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `libtype` | string | "A" | Library type (e.g., A = auto-detect) |
+| `threads` | integer | 4 | Number of threads |
+| `validate_mappings` | boolean | TRUE | Enable stricter mapping validation |
+| `gc_bias` | boolean | FALSE | Perform GC bias correction |
+| `extras` | string | "" | Additional arguments |
+

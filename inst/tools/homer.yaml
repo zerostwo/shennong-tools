@@ -1,0 +1,98 @@
+tool_name: homer
+description: "HOMER (Hypergeometric Optimization of Motif EnRichment) for motif discovery and next-gen sequencing analysis"
+citation: "10.1093/bioinformatics/btr614"
+
+environment:
+  channels: 
+    - conda-forge
+    - bioconda
+  dependencies:
+    - homer
+
+commands:
+  findmotifgenome:
+    description: "Perform de novo and known motif discovery given genomic regions"
+    binary: findMotifsGenome.pl
+    help_flag: ""
+
+    inputs:
+      peaks:
+        datatype: bed
+        required: true
+        description: "Input peak file in BED format"
+      genome:
+        datatype: string
+        required: true
+        description: "Genome identifier (e.g., hg38, mm10)"
+
+    outputs:
+      outdir:
+        datatype: directory
+        required: true
+        description: "Output directory for motif results"
+
+    params:
+      size:
+        datatype: string
+        default: "200"
+        description: "Window size around peaks (e.g., 200, 200,400)"
+      threads:
+        datatype: integer
+        default: 4
+        description: "Number of threads to use"
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional HOMER options"
+
+    shell: >
+      {{ binary }} {{ peaks }} {{ genome }} {{ outdir }}
+      -size {{ size }}
+      -p {{ threads }}
+      {{ extras }}
+
+  maketagdirectory:
+    description: "Create a tag directory from aligned reads (e.g., BAM files)"
+    binary: makeTagDirectory
+    help_flag: ""
+
+    inputs:
+      outdir:
+        datatype: directory
+        required: true
+        description: "Output tag directory"
+      reads:
+        datatype: [bam, sam]
+        required: true
+        description: "Input alignment file(s)"
+
+    outputs:
+      tagdir:
+        datatype: directory
+        required: true
+        description: "Created tag directory (same as input outdir)"
+
+    params:
+      format:
+        datatype: string
+        default: "auto"
+        description: "Force file format (e.g., sam, bam, auto)"
+      paired:
+        datatype: boolean
+        default: false
+        description: "Whether the data is paired-end"
+      threads:
+        datatype: integer
+        default: 4
+        description: "Number of threads to use"
+      extras:
+        datatype: string
+        default: ""
+        description: "Additional HOMER options"
+
+    shell: >
+      {{ binary }} {{ outdir }} {{ reads }}
+      {% if paired %}-paired{% endif %}
+      -format {{ format }}
+      -cpu {{ threads }}
+      {{ extras }}

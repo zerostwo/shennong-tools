@@ -10,10 +10,12 @@
 #' @param dry_run Logical. If TRUE, only show the command without executing.
 #' @param work_dir Character. Working directory for execution.
 #' @param log_level Character or Integer. Logging level: "silent"/"quiet"/0,
-#'   "minimal"/1, "normal"/2. Default "normal".
+#'   "minimal"/1, "normal"/2. Default "minimal".
 #' @param log_dir Character. Directory to save log files. If NULL, uses work_dir.
 #'
 #' @return ToolCall object containing execution results.
+#' @family core functions
+#' @concept core functions
 #' @export
 #'
 #' @examples
@@ -34,114 +36,35 @@
 sn_run <- function(tool_name, command, version = NULL, ...,
                    dry_run = FALSE,
                    work_dir = ".",
-                   log_level = "normal",
+                   log_level = "minimal",
                    log_dir = NULL) {
   # Get or create default toolbox
+  # TODO: change to sn_load_toolbox() ?
   toolbox <- .get_default_toolbox()
+
+  # Get tool from toolbox
+  if (!tool_name %in% sn_get_toolbox_tools(toolbox)) {
+    cli_abort("Tool {tool_name} not found in toolbox. Available tools: {paste(sn_get_toolbox_tools(toolbox), collapse = ', ')}")
+  }
+
+  # Normalize work_dir to absolute path
+  work_dir <- normalizePath(work_dir, mustWork = TRUE)
 
   # Normalize log level
   log_level <- .normalize_log_level(log_level)
   show_messages <- log_level >= 1
   show_tool_output <- log_level >= 2
 
-  # Check if tool is available in toolbox
-  if (!tool_name %in% names(toolbox@tools)) {
-    # Try to add the tool automatically using a robust fallback approach
-    if (show_messages) {
-      cli_alert_info("Tool {tool_name} not found in toolbox, adding it...")
-    }
-
-    # Bypass sn_add_tool and create tool manually if needed
-    tool_added <- FALSE
-
-    # Try sn_add_tool first (only if we want to show messages)
-    if (show_messages) {
-      tool_added <- tryCatch(
-        {
-          toolbox <- sn_add_tool(toolbox, tool_name, version = version, install = TRUE)
-          .set_default_toolbox(toolbox)
-          TRUE
-        },
-        error = function(e) {
-          if (show_messages) {
-            cli_alert_warning("Standard tool addition failed, creating tool manually...")
-          }
-          FALSE
-        }
-      )
-    }
-
-    # If sn_add_tool failed or we're in silent mode, create tool manually
-    if (!tool_added) {
-      tryCatch(
-        {
-          # Load tool configuration manually
-          tool_config <- .load_builtin_tool(tool_name, version)
-
-          # Resolve version if NULL
-          if (is.null(version)) {
-            version <- .resolve_latest_version(tool_config)
-          }
-
-          # Create tool object manually
-          tool <- .create_tool_from_config(tool_config, version, toolbox@base_dir)
-
-          # Add to toolbox manually
-          if (!tool_name %in% names(toolbox@tools)) {
-            toolbox@tools[[tool_name]] <- list()
-          }
-
-          toolbox@tools[[tool_name]][[version]] <- tool
-
-          # Try to install
-          if (show_messages) {
-            cli_alert_info("Installing {tool_name} version {version}...")
-          }
-
-          install_result <- tryCatch(
-            {
-              .install_tool_with_yaml(tool_name, version, tool_config, toolbox@base_dir, show_messages = show_messages)
-            },
-            error = function(install_error) {
-              if (show_messages) {
-                cli_alert_warning("Installation failed: {install_error$message}")
-              }
-              return(NULL)
-            }
-          )
-
-          # Update installation status if successful
-          if (!is.null(install_result)) {
-            toolbox@tools[[tool_name]][[version]]@installed <- TRUE
-            toolbox@tools[[tool_name]][[version]]@install_date <- Sys.time()
-            if (show_messages) {
-              cli_alert_success("Added and installed {tool_name} version {version}")
-            }
-          } else {
-            if (show_messages) {
-              cli_alert_warning("Tool added but installation failed - will try again later")
-            }
-          }
-
-          # Update the global toolbox
-          .set_default_toolbox(toolbox)
-        },
-        error = function(e2) {
-          cli_abort("Failed to add tool {tool_name}: {e2$message}")
-        }
-      )
-    }
-  }
-
-  # Get tool from toolbox
-  if (!tool_name %in% names(toolbox@tools)) {
-    cli_abort("Tool {tool_name} not found in toolbox. Available tools: {paste(names(toolbox@tools), collapse = ', ')}")
-  }
+  # Get tool object
+  tool <- sn_get_tool(toolbox, tool_name)
 
   # Determine version to use
-  available_versions <- names(toolbox@tools[[tool_name]])
+  available_versions <- sn_get_tool_versions(tool)
   if (is.null(version)) {
-    version <- available_versions[1] # Use first available version
+    version <- sn_get_tool_version(tool) # Use default version
+    if (length(version) == 0 && length(available_versions) > 0) {
+      version <- available_versions[1] # Fallback to first available
+    }
     if (show_messages) {
       cli_alert_info("Using version {version} (specify version parameter to choose different version)")
     }
@@ -151,47 +74,33 @@ sn_run <- function(tool_name, command, version = NULL, ...,
     cli_abort("Version {version} not found for {tool_name}. Available versions: {paste(available_versions, collapse = ', ')}")
   }
 
-  tool <- toolbox@tools[[tool_name]][[version]]
-
   # Check tool is installed
-  if (!tool@installed) {
+  if (!.is_installed(tool, version)) {
     # Try one more time to install the tool if it's not marked as installed
     if (show_messages) {
       cli_alert_info("Tool not marked as installed, attempting installation...")
     }
 
-    install_result <- tryCatch(
-      {
-        # Need to load tool config for YAML installation
-        tool_config <- .load_builtin_tool(tool_name, version)
-        .install_tool_with_yaml(tool_name, version, tool_config, toolbox@base_dir, show_messages = show_messages)
-      },
-      error = function(e) {
-        if (show_messages) {
-          cli_alert_warning("Installation attempt failed: {e$message}")
-        }
-        return(NULL)
-      }
+    temp_yaml <- tempfile(fileext = ".yaml")
+    on.exit(unlink(temp_yaml), add = TRUE)
+    tool@environment$dependencies <- as.list(tool@environment$dependencies)
+    write_yaml(tool@environment, temp_yaml)
+    env_path <- file.path(tool_name, version)
+    .mamba_create_from_yaml(
+      yaml_file = temp_yaml,
+      env_name = env_path,
+      base_dir = toolbox@base_dir,
+      mamba = toolbox@mamba_path,
+      overwrite = TRUE
     )
-
-    if (!is.null(install_result)) {
-      # Update the tool status
-      tool@installed <- TRUE
-      tool@install_date <- Sys.time()
-      toolbox@tools[[tool_name]][[version]] <- tool
-      .set_default_toolbox(toolbox)
-
-      if (show_messages) {
-        cli_alert_success("Tool {tool_name} installed successfully!")
-      }
-    } else {
-      cli_abort("Tool {tool_name} version {version} is not installed and installation failed. Try running sn_install_tool('{tool_name}') manually.")
+    if (show_messages) {
+      cli_alert_success("Tool {tool_name} installed successfully!")
     }
   }
 
   # Validate command exists
-  if (!command %in% names(tool@commands)) {
-    available_commands <- paste(names(tool@commands), collapse = ", ")
+  if (!command %in% sn_get_tool_commands(tool)) {
+    available_commands <- paste(sn_get_tool_commands(tool), collapse = ", ")
     cli_abort("Command '{command}' not found for tool '{tool_name}'. Available commands: {available_commands}")
   }
 
@@ -331,7 +240,7 @@ sn_run <- function(tool_name, command, version = NULL, ...,
     cli_bullets(c("i" = "Log saved to: {.file {log_file}}"))
   }
 
-  return(tool_call)
+  invisible(tool_call)
 }
 
 # Internal helper functions ---------------------------------------------------
@@ -370,36 +279,27 @@ sn_run <- function(tool_name, command, version = NULL, ...,
   return(work_dir)
 }
 
-#' Normalize Log Level
-#' @keywords internal
-.normalize_log_level <- function(log_level) {
-  # Validate log_level parameter
-  valid_levels <- c("silent", "quiet", "minimal", "normal", 0, 1, 2)
-
-  if (!log_level %in% valid_levels) {
-    cli_abort("Invalid log_level: {log_level}. Must be one of: 'silent'/'quiet'/0, 'minimal'/1, 'normal'/2")
-  }
-
-  if (is.character(log_level)) {
-    switch(log_level,
-      "silent" = 0,
-      "quiet" = 0,
-      "minimal" = 1,
-      "normal" = 2,
-      1 # This line should never be reached due to validation above
-    )
-  } else {
-    as.integer(log_level)
-  }
-}
-
 #' Display Workflow Information
 #' @keywords internal
 .display_workflow_info <- function(tool, command, cmd_config, user_params) {
-  cli_rule("Running {tool@tool_name}::{command}")
+  cli_rule("Running {sn_get_tool_name(tool)}::{command}")
 
   if (!is.null(cmd_config$description)) {
     cli_bullets(c("i" = cmd_config$description))
+  }
+
+  # Helper to collapse vector values for display
+  format_value <- function(x) {
+    if (is.null(x)) {
+      return("NULL")
+    }
+    if (is.atomic(x) && length(x) > 1) {
+      x <- paste(x, collapse = " ")
+    }
+    if (is.character(x) && nchar(x) > 50) {
+      x <- paste0(substr(x, 1, 47), "...")
+    }
+    x
   }
 
   # Extract inputs, outputs, and parameters separately
@@ -420,10 +320,7 @@ sn_run <- function(tool_name, command, version = NULL, ...,
   if (length(inputs) > 0) {
     cli_h3(paste0(symbol$file, " Inputs"))
     for (input_name in names(inputs)) {
-      input_value <- inputs[[input_name]]
-      if (is.character(input_value) && nchar(input_value) > 50) {
-        input_value <- paste0(substr(input_value, 1, 47), "...")
-      }
+      input_value <- format_value(inputs[[input_name]])
       cli_text("  {col_cyan(input_name)}: {.path {input_value}}")
     }
   }
@@ -432,10 +329,7 @@ sn_run <- function(tool_name, command, version = NULL, ...,
   if (length(outputs) > 0) {
     cli_h3(paste0(symbol$arrow_right, " Outputs"))
     for (output_name in names(outputs)) {
-      output_value <- outputs[[output_name]]
-      if (is.character(output_value) && nchar(output_value) > 50) {
-        output_value <- paste0(substr(output_value, 1, 47), "...")
-      }
+      output_value <- format_value(outputs[[output_name]])
       cli_text("  {col_green(output_name)}: {.path {output_value}}")
     }
   }
@@ -444,10 +338,7 @@ sn_run <- function(tool_name, command, version = NULL, ...,
   if (length(params) > 0) {
     cli_h3(paste0(symbol$gear, " Parameters"))
     for (param_name in names(params)) {
-      param_value <- params[[param_name]]
-      if (is.character(param_value) && nchar(param_value) > 50) {
-        param_value <- paste0(substr(param_value, 1, 47), "...")
-      }
+      param_value <- format_value(params[[param_name]])
       cli_text("  {col_silver(param_name)}: {.val {param_value}}")
     }
   }
@@ -466,17 +357,31 @@ sn_run <- function(tool_name, command, version = NULL, ...,
     if (output_name %in% names(user_params)) {
       output_path <- user_params[[output_name]]
       if (is.character(output_path) && length(output_path) == 1) {
-        output_dir <- dirname(output_path)
-        if (output_dir != "." && !dir.exists(output_dir)) {
-          dir.create(output_dir, recursive = TRUE)
-          dirs_created <- c(dirs_created, output_dir)
+        # Determine whether this output is a directory or a file based on datatype
+        output_def <- cmd_config$outputs[[output_name]]
+        datatype <- output_def$datatype %||% "file"
+        # YAML may specify datatype as a character vector or list; coerce to character vector
+        if (is.list(datatype)) datatype <- unlist(datatype, recursive = TRUE, use.names = FALSE)
+        is_directory <- any(datatype == "directory")
+
+        target_dir <- if (is_directory) {
+          # Use the path itself for directory outputs
+          output_path
+        } else {
+          # Use the parent directory for file outputs
+          dirname(output_path)
+        }
+
+        if (target_dir != "." && !dir.exists(target_dir)) {
+          dir.create(target_dir, recursive = TRUE)
+          dirs_created <- c(dirs_created, target_dir)
         }
       }
     }
   }
 
   if (length(dirs_created) > 0 && show_messages) {
-    cli_bullets(c("v" = "Created output directories: {.path {dirs_created}}"))
+    cli_bullets(c("v" = "Created output directories: {.path {unique(dirs_created)}}"))
   }
 }
 
@@ -753,11 +658,15 @@ sn_run <- function(tool_name, command, version = NULL, ...,
 #' Install Tool with YAML Configuration
 #' Always use YAML-based installation to ensure all dependencies are included
 #' @keywords internal
-.install_tool_with_yaml <- function(tool_name, version, config, base_dir, show_messages) {
+.install_tool_with_yaml <- function(tool_name,
+                                    version,
+                                    config,
+                                    base_dir,
+                                    show_messages) {
   # Extract environment specification from the tool YAML
-  env <- config$environment %||% list()
-  channels <- env$channels %||% c("conda-forge", "bioconda")
-  dependencies <- env$dependencies %||% list(paste0(tool_name, "=", version))
+  env <- config$environment
+  channels <- env$channels
+  dependencies <- env$dependencies
 
   # Resolve versions for dependencies that don't have explicit versions
   resolved_dependencies <- .resolve_dependency_versions(dependencies, channels, show_messages)
@@ -773,7 +682,7 @@ sn_run <- function(tool_name, command, version = NULL, ...,
   env_path <- file.path(base_dir, tool_name, actual_version)
 
   # Check if already exists
-  if (dir.exists(env_path)) {
+  if (.is_installed(tool_name, actual_version, base_dir)) {
     if (show_messages) {
       cli_alert_success("Environment already exists at {env_path}")
     }
@@ -818,6 +727,57 @@ sn_run <- function(tool_name, command, version = NULL, ...,
     }
   }
 
+  # Enhanced verification: check if tool is actually properly installed
+  tool_config <- config
+  tool <- tryCatch(
+    {
+      # Create a temporary tool object for verification
+      temp_tool <- new("Tool",
+        tool_name = tool_name,
+        versions = actual_version,
+        default_version = actual_version,
+        description = tool_config$description %||% "",
+        citation = tool_config$citation %||% "",
+        environment = tool_config$environment %||% list(),
+        commands = tool_config$commands %||% list(),
+        install_dates = list()
+      )
+      temp_tool
+    },
+    error = function(e) NULL
+  )
+
+  if (!is.null(tool)) {
+    diagnosis <- .diagnose_tool_installation(tool, actual_version, base_dir, show_details = show_messages)
+
+    if (!diagnosis$installed) {
+      if (show_messages) {
+        cli_alert_danger("Environment created but tool installation incomplete:")
+        if (!is.null(diagnosis$issues)) {
+          for (issue in diagnosis$issues) {
+            cli_text("  • {issue}")
+          }
+        }
+
+        # Show some debugging information
+        if (file.exists(temp_yaml)) {
+          cli_alert_info("YAML content used for installation:")
+          yaml_lines <- readLines(temp_yaml)
+          for (line in head(yaml_lines, 20)) {
+            cli_text("  {line}")
+          }
+          if (length(yaml_lines) > 20) {
+            cli_text("  ... ({length(yaml_lines) - 20} more lines)")
+          }
+        }
+
+        cli_alert_warning("Tool may not be available or YAML configuration may need adjustment")
+      }
+    } else if (show_messages) {
+      cli_alert_success("Tool installation verified successfully")
+    }
+  }
+
   if (show_messages) {
     cli_alert_success("Environment created successfully at {env_path}")
   }
@@ -829,23 +789,142 @@ sn_run <- function(tool_name, command, version = NULL, ...,
 # Store default toolbox in package environment
 .toolbox_env <- new.env(parent = emptyenv())
 
-#' Get Default Toolbox
+#' Get Default Toolbox with Smart Loading
 #' @keywords internal
 .get_default_toolbox <- function() {
-  if (!exists("default_toolbox", envir = .toolbox_env)) {
-    toolbox <- sn_initialize_toolbox()
-    assign("default_toolbox", toolbox, envir = .toolbox_env)
+  if (!exists("current_toolbox", envir = .toolbox_env)) {
+    toolbox <- .load_smart_toolbox()
+    assign("current_toolbox", toolbox, envir = .toolbox_env)
   }
-  return(get("default_toolbox", envir = .toolbox_env))
+  return(get("current_toolbox", envir = .toolbox_env))
 }
 
 #' Set Default Toolbox
 #' @keywords internal
 .set_default_toolbox <- function(toolbox) {
-  assign("default_toolbox", toolbox, envir = .toolbox_env)
+  assign("current_toolbox", toolbox, envir = .toolbox_env)
+}
+
+#' Smart Toolbox Loading with Priority
+#' @keywords internal
+.load_smart_toolbox <- function() {
+  # 1. Check for user-specified path via environment variable
+  user_path <- Sys.getenv("SHENNONG_TOOLBOX_PATH", "")
+  if (nzchar(user_path) && file.exists(user_path)) {
+    tryCatch(
+      {
+        toolbox <- readRDS(user_path)
+        if (inherits(toolbox, "Toolbox")) {
+          return(toolbox)
+        }
+      },
+      error = function(e) {
+        cli_alert_warning("Failed to load toolbox from {user_path}: {e$message}")
+      }
+    )
+  }
+
+  # 2. Check for user toolbox in user config directory
+  user_config_dir <- R_user_dir("shennong-tools", "config")
+  user_toolbox_path <- file.path(user_config_dir, "user_toolbox.rds")
+  if (file.exists(user_toolbox_path)) {
+    tryCatch(
+      {
+        toolbox <- readRDS(user_toolbox_path)
+        if (inherits(toolbox, "Toolbox")) {
+          return(toolbox)
+        }
+      },
+      error = function(e) {
+        cli_alert_warning("Failed to load user toolbox: {e$message}")
+      }
+    )
+  }
+
+  # 3. Use package default toolbox (pre-loaded with all built-in tools)
+  tryCatch(
+    {
+      # Try to load from package data
+      data("default_toolbox", package = "ShennongTools", envir = environment())
+      if (exists("default_toolbox", envir = environment())) {
+        base_toolbox <- get("default_toolbox", envir = environment())
+      } else {
+        # Fallback: create empty toolbox
+        base_toolbox <- sn_initialize_toolbox()
+      }
+
+      # Clone the toolbox to avoid modifying the original
+      toolbox <- new("Toolbox",
+        base_dir = base_toolbox@base_dir,
+        mamba_path = base_toolbox@mamba_path,
+        tools = base_toolbox@tools
+      )
+
+      # Set runtime paths if not set
+      if (length(toolbox@base_dir) == 0) {
+        toolbox@base_dir <- R_user_dir("shennong-tools", "data")
+      }
+      if (length(toolbox@mamba_path) == 0) {
+        toolbox@mamba_path <- .check_mamba()
+      }
+
+      return(toolbox)
+    },
+    error = function(e) {
+      cli_alert_warning("Failed to load default toolbox: {e$message}")
+      # Fallback: create empty toolbox
+      return(sn_initialize_toolbox())
+    }
+  )
+
+  # 4. Final fallback: create empty toolbox
+  return(sn_initialize_toolbox())
+}
+
+#' Save User Toolbox
+#' @keywords internal
+.save_user_toolbox <- function(toolbox) {
+  # Only save if toolbox has been modified (has tools added by user)
+  user_config_dir <- R_user_dir("shennong-tools", "config")
+
+  # Create config directory if it doesn't exist
+  if (!dir.exists(user_config_dir)) {
+    dir.create(user_config_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+
+  user_toolbox_path <- file.path(user_config_dir, "user_toolbox.rds")
+
+  tryCatch(
+    {
+      saveRDS(toolbox, user_toolbox_path)
+      return(TRUE)
+    },
+    error = function(e) {
+      cli_alert_warning("Failed to save user toolbox: {e$message}")
+      return(FALSE)
+    }
+  )
+}
+
+#' Check if Toolbox Should be Saved
+#' @keywords internal
+.should_save_toolbox <- function(toolbox) {
+  # Always save user toolbox when user makes modifications
+  # This ensures user changes are persisted regardless of tool count
+  return(TRUE)
+}
+
+#' Check if Toolbox is User Modified
+#' @keywords internal
+.is_user_modified_toolbox <- function() {
+  user_config_dir <- R_user_dir("shennong-tools", "config")
+  user_toolbox_path <- file.path(user_config_dir, "user_toolbox.rds")
+  return(file.exists(user_toolbox_path))
 }
 
 #' Reset Default Toolbox
+#' @family tool management
+#' @concept tool management
 #' @export
 sn_reset_toolbox <- function() {
   if (exists("default_toolbox", envir = .toolbox_env)) {
