@@ -4,25 +4,14 @@
 \alias{sn_render_template}
 \title{Render Template with Parameters using Jinjar}
 \usage{
-sn_render_template(
-  template,
-  params,
-  inputs = list(),
-  outputs = list(),
-  command_config = list(),
-  show_messages = TRUE
-)
+sn_render_template(tool, command, params, show_messages = TRUE)
 }
 \arguments{
-\item{template}{Character. Template string from tool configuration (shell or python field).}
+\item{tool}{Tool object.}
+
+\item{command}{Character. Command name.}
 
 \item{params}{List. Named list of parameters to substitute in template.}
-
-\item{inputs}{List. Input definitions from tool configuration.}
-
-\item{outputs}{List. Output definitions from tool configuration.}
-
-\item{command_config}{List. Complete command configuration from tool YAML.}
 
 \item{show_messages}{Logical. Whether to show template rendering messages.}
 }
@@ -35,9 +24,10 @@ parameters. Supports Jinja2 syntax for conditional logic and variable substituti
 }
 \examples{
 \dontrun{
-template <- "samtools view -@ {{ threads }} {{ input }} -o {{ output }}"
+tool <- Tool("my_tool", "my_tool.yaml")
+command <- "my_command"
 params <- list(threads = 4, input = "test.bam", output = "filtered.bam")
-rendered <- sn_render_template(template, params, inputs, outputs, cmd_config)
+rendered <- sn_render_template(tool, command, params)
 }
 }
 \seealso{

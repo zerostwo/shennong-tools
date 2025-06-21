@@ -12,6 +12,7 @@
 #' @param log_level Character or Integer. Logging level: "silent"/"quiet"/0,
 #'   "minimal"/1, "normal"/2. Default "minimal".
 #' @param log_dir Character. Directory to save log files. If NULL, uses work_dir.
+#' @param overwrite Logical. If TRUE, overwrite existing outputs.
 #'
 #' @return ToolCall object containing execution results.
 #' @family core functions
@@ -37,7 +38,8 @@ sn_run <- function(tool_name, command, version = NULL, ...,
                    dry_run = FALSE,
                    work_dir = ".",
                    log_level = "minimal",
-                   log_dir = NULL) {
+                   log_dir = NULL,
+                   overwrite = FALSE) {
   # Get or create default toolbox
   # TODO: change to sn_load_toolbox() ?
   toolbox <- .get_default_toolbox()
@@ -83,7 +85,7 @@ sn_run <- function(tool_name, command, version = NULL, ...,
 
     temp_yaml <- tempfile(fileext = ".yaml")
     on.exit(unlink(temp_yaml), add = TRUE)
-    # tool@environment$dependencies <- as.list(tool@environment$dependencies)
+
     tool@environment$dependencies <- lapply(tool@environment$dependencies, \(dep) {
       if (is.list(dep) && "pip" %in% names(dep)) dep["pip"] <- list(as.list(dep$pip))
       dep
@@ -115,18 +117,16 @@ sn_run <- function(tool_name, command, version = NULL, ...,
 
   # Display workflow information
   if (show_messages) {
-    .display_workflow_info(tool, command, cmd_config, user_params)
+    .display_workflow_info(tool, command, user_params)
   }
 
   # Determine template type and render command
   if (!is.null(cmd_config$shell)) {
     # Shell command template
     rendered_cmd <- sn_render_template(
-      template = cmd_config$shell,
+      tool = tool,
+      command = command,
       params = user_params,
-      inputs = cmd_config$inputs %||% list(),
-      outputs = cmd_config$outputs %||% list(),
-      command_config = cmd_config,
       show_messages = show_messages
     )
     execution_type <- "shell"
@@ -167,9 +167,7 @@ sn_run <- function(tool_name, command, version = NULL, ...,
 
   # Determine log directory with smart logic
   final_log_dir <- .determine_log_directory(log_dir, work_dir, user_params, cmd_config$outputs %||% list())
-  if (!dir.exists(final_log_dir)) {
-    dir.create(final_log_dir, recursive = TRUE)
-  }
+  dir_create(final_log_dir)
   log_file <- file.path(final_log_dir, log_file_name)
 
   # Log file path will be shown after execution
@@ -191,6 +189,23 @@ sn_run <- function(tool_name, command, version = NULL, ...,
       cpu_percent = NA
     )
   )
+
+  # Overwrite
+  if (all(file_exists(unlist(tool_call@outputs))) && !overwrite) {
+    cli_alert_info("Outputs already exist and overwrite is FALSE. Use {.code overwrite = TRUE} to overwrite existing outputs.")
+    tool_call@status <- "success"
+    tool_call@return_code <- 0
+    tool_call@stdout <- "Outputs already exist and overwrite is FALSE. Use {.code overwrite = TRUE} to overwrite existing outputs."
+    tool_call@stderr <- ""
+    tool_call@resources <- list(
+      runtime_seconds = 0,
+      memory_mb = 0,
+      cpu_percent = 0,
+      start_time = Sys.time(),
+      end_time = Sys.time()
+    )
+    return(invisible(tool_call))
+  }
 
   # Execute or dry run
   if (dry_run) {
@@ -285,8 +300,9 @@ sn_run <- function(tool_name, command, version = NULL, ...,
 
 #' Display Workflow Information
 #' @keywords internal
-.display_workflow_info <- function(tool, command, cmd_config, user_params) {
+.display_workflow_info <- function(tool, command, user_params) {
   cli_rule("Running {sn_get_tool_name(tool)}::{command}")
+  cmd_config <- tool@commands[[command]]
 
   if (!is.null(cmd_config$description)) {
     cli_bullets(c("i" = cmd_config$description))

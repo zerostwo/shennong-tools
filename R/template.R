@@ -3,11 +3,9 @@
 #' Uses the jinjar package to render command templates with user-provided
 #' parameters. Supports Jinja2 syntax for conditional logic and variable substitution.
 #'
-#' @param template Character. Template string from tool configuration (shell or python field).
+#' @param tool Tool object.
+#' @param command Character. Command name.
 #' @param params List. Named list of parameters to substitute in template.
-#' @param inputs List. Input definitions from tool configuration.
-#' @param outputs List. Output definitions from tool configuration.
-#' @param command_config List. Complete command configuration from tool YAML.
 #' @param show_messages Logical. Whether to show template rendering messages.
 #'
 #' @return Character. Rendered command string.
@@ -17,19 +15,25 @@
 #'
 #' @examples
 #' \dontrun{
-#' template <- "samtools view -@ {{ threads }} {{ input }} -o {{ output }}"
+#' tool <- Tool("my_tool", "my_tool.yaml")
+#' command <- "my_command"
 #' params <- list(threads = 4, input = "test.bam", output = "filtered.bam")
-#' rendered <- sn_render_template(template, params, inputs, outputs, cmd_config)
+#' rendered <- sn_render_template(tool, command, params)
 #' }
-sn_render_template <- function(template, params, inputs = list(), outputs = list(), command_config = list(), show_messages = TRUE) {
+sn_render_template <- function(tool, command, params, show_messages = TRUE) {
+  cmd_config <- tool@commands[[command]]
+  inputs <- cmd_config$inputs %||% list()
+  outputs <- cmd_config$outputs %||% list()
+  template <- cmd_config$shell
+
   # Prepare parameters with defaults
-  final_params <- .prepare_template_params(params, inputs, outputs, command_config)
+  final_params <- .prepare_template_params(params, inputs, outputs, cmd_config)
 
   # Validate required parameters
   .validate_template_params(final_params, inputs, outputs)
 
   # Handle special parameter types
-  final_params <- .handle_special_param_types(final_params, inputs, command_config)
+  final_params <- .handle_special_param_types(final_params, inputs, cmd_config)
 
   # Render using jinjar
   tryCatch(

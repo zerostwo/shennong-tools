@@ -4,7 +4,7 @@
 \alias{.display_workflow_info}
 \title{Display Workflow Information}
 \usage{
-.display_workflow_info(tool, command, cmd_config, user_params)
+.display_workflow_info(tool, command, user_params)
 }
 \description{
 Display Workflow Information

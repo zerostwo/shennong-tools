@@ -475,19 +475,22 @@ setMethod("show", "ToolCall", function(object) {
 
   # Inputs section
   if (length(object@inputs) > 0) {
-    cli_h3(paste0(symbol$file, " Inputs"))
+    cli_h3("Inputs")
     for (name in names(object@inputs)) {
-      value <- object@inputs[[name]]
-      if (nchar(value) > 50) {
-        value <- paste0(substr(value, 1, 47), "...")
+      values <- object@inputs[[name]]
+      cli_text("{col_cyan(name)}:")
+      for (value in values) {
+        if (nchar(value) > 50) {
+          value <- paste0(substr(value, 1, 47), "...")
+        }
+        cli_text("  {.path {value}}")
       }
-      cli_text("{col_cyan(name)}: {.path {value}}")
     }
   }
 
   # Outputs section
   if (length(object@outputs) > 0) {
-    cli_h3(paste0(symbol$arrow_right, " Outputs"))
+    cli_h3("Outputs")
     for (name in names(object@outputs)) {
       value <- object@outputs[[name]]
       if (nchar(value) > 50) {
@@ -520,7 +523,7 @@ setMethod("show", "ToolCall", function(object) {
   pure_params <- param_names[!param_names %in% c(input_names, output_names)]
 
   if (length(pure_params) > 0) {
-    cli_h3(paste0(symbol$gear, " Parameters"))
+    cli_h3("Parameters")
     for (name in pure_params) {
       value <- object@params[[name]]
       if (is.character(value) && nchar(value) > 30) {

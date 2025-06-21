@@ -12,7 +12,8 @@ sn_run(
   dry_run = FALSE,
   work_dir = ".",
   log_level = "minimal",
-  log_dir = NULL
+  log_dir = NULL,
+  overwrite = FALSE
 )
 }
 \arguments{
@@ -32,6 +33,8 @@ sn_run(
 "minimal"/1, "normal"/2. Default "minimal".}
 
 \item{log_dir}{Character. Directory to save log files. If NULL, uses work_dir.}
+
+\item{overwrite}{Logical. If TRUE, overwrite existing outputs.}
 }
 \value{
 ToolCall object containing execution results.
