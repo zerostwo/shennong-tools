@@ -57,6 +57,7 @@ Other mock data generation:
 \code{\link{sn_cleanup_mockdata_examples}()},
 \code{\link{sn_generate_mockdata}()},
 \code{\link{sn_generate_mockdata_batch}()},
-\code{\link{sn_generate_rnaseq_dataset}()}
+\code{\link{sn_generate_rnaseq_dataset}()},
+\code{\link{sn_mockdata_options}()}
 }
 \concept{mock data generation}

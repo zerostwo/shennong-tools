@@ -45,6 +45,7 @@ sn_render_template <- function(template, params, inputs = list(), outputs = list
         }
       }
 
+      args$extras <- if (length(args$extras) == 0) "" else paste(args$extras, collapse = " ")
       rendered <- do.call(render, args)
 
       # Clean up extra whitespace

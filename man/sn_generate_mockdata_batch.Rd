@@ -8,7 +8,7 @@ sn_generate_mockdata_batch(spec, base_dir = ".", seed = 123, compress = NULL)
 }
 \arguments{
 \item{spec}{List. Specification for files to generate. Each element should be
-a list with 'datatype', and optionally 'output_file', 'size', 'n_records', 'options'.
+a list with 'datatype', and optionally 'output_file', 'size', 'n_records', and other options.
 If 'output_file' is NULL, temporary files will be created.}
 
 \item{base_dir}{Character. Base directory for output files (default: current directory).
@@ -31,14 +31,10 @@ This function automatically creates a shared genome context for biological files
 # Generate a complete test dataset with specific files
 spec <- list(
   list(datatype = "fasta", output_file = "reference.fa", size = "small"),
-  list(
-    datatype = "fastq", output_file = "reads_R1.fastq.gz",
-    options = list(read_type = "R1"), size = "medium"
-  ),
-  list(
-    datatype = "fastq", output_file = "reads_R2.fastq.gz",
-    options = list(read_type = "R2"), size = "medium"
-  ),
+  list(datatype = "fastq", output_file = "reads_R1.fastq.gz", 
+       read_type = "R1", size = "medium"),
+  list(datatype = "fastq", output_file = "reads_R2.fastq.gz", 
+       read_type = "R2", size = "medium"),
   list(datatype = "gtf", output_file = "annotation.gtf", size = "small")
 )
 files <- sn_generate_mockdata_batch(spec, base_dir = "test_data/")
@@ -46,14 +42,11 @@ files <- sn_generate_mockdata_batch(spec, base_dir = "test_data/")
 # Generate temporary compatible files
 temp_spec <- list(
   list(datatype = "fasta", size = "small"),
-  list(datatype = "fastq", options = list(read_type = "R1")),
-  list(datatype = "fastq", options = list(read_type = "R2")),
+  list(datatype = "fastq", read_type = "R1"),
+  list(datatype = "fastq", read_type = "R2"),
   list(datatype = "gtf", size = "small")
 )
 temp_files <- sn_generate_mockdata_batch(temp_spec)
-
-# Clean up temporary files when done
-sn_cleanup_mockdata_examples()
 }
 }
 \seealso{
@@ -61,6 +54,7 @@ Other mock data generation:
 \code{\link{sn_cleanup_mockdata_examples}()},
 \code{\link{sn_generate_mockdata}()},
 \code{\link{sn_generate_rnaseq_dataset}()},
-\code{\link{sn_get_example_value_with_mockdata}()}
+\code{\link{sn_get_example_value_with_mockdata}()},
+\code{\link{sn_mockdata_options}()}
 }
 \concept{mock data generation}

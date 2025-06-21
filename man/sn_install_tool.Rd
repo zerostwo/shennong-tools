@@ -53,7 +53,6 @@ sn_install_tool("bioinformatics", yaml = "path/to/environment.yaml")
 }
 \seealso{
 Other tool management: 
-\code{\link{.validate_tool_legacy}()},
 \code{\link{default_toolbox}},
 \code{\link{sn_add_tool}()},
 \code{\link{sn_check_user_toolbox}()},
@@ -69,7 +68,6 @@ Other tool management:
 \code{\link{sn_validate_tool}()}
 
 Other tool management: 
-\code{\link{.validate_tool_legacy}()},
 \code{\link{default_toolbox}},
 \code{\link{sn_add_tool}()},
 \code{\link{sn_check_user_toolbox}()},

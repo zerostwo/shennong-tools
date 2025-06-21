@@ -48,7 +48,6 @@ sn_install_micromamba(version = "1.5.6")
 }
 \seealso{
 Other tool management: 
-\code{\link{.validate_tool_legacy}()},
 \code{\link{default_toolbox}},
 \code{\link{sn_add_tool}()},
 \code{\link{sn_check_user_toolbox}()},

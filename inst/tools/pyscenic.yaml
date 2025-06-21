@@ -11,6 +11,7 @@ environment:
     - numpy<1.24
     - numba<0.57
     - setuptools<80
+    - dask<2023.4
     - pip:
         - pyscenic
 
@@ -59,9 +60,10 @@ commands:
         description: "Additional arguments to pass to the pyscenic command."
 
     shell: >
-      pyscenic grn --method {{ method }} --num_workers {{ threads }}
+      {{ binary }} grn
       {% if transpose %}--transpose{% endif %}
-      {{ expression }} {{ tf_list }} {{ adjacencies }} {{ extras }}
+      --method {{ method }} --seed {{ seed }} --num_workers {{ threads }}
+      {{ expression }} {{ tf_list }} --output {{ adjacencies }} {{ extras }}
 
   ctx:
     description: Prune GRNs using motif enrichment (cisTarget)
@@ -69,34 +71,57 @@ commands:
     help_flag: --help
 
     inputs:
-      adjacencies:
-        datatype: csv
+      module:
+        datatype: [csv, tsv, yaml]
         required: true
-        description: Adjacency matrix from GRN step
-      motifs:
-        datatype: feather
+        description: "Module file, typically the output of GRN step (adjacency CSV or YAML)."
+      databases:
+        datatype: [feather]
         required: true
-        description: Motif ranking databases
+        description: "Motif ranking databases (one or more .feather files)."
+      annotations:
+        datatype: [tbl, tsv]
+        required: true
+        description: "Motif annotations file (.tbl or .tsv)."
+      expression:
+        datatype: [loom, csv]
+        required: true
+        description: "The name of the file that contains the expression matrix for the single cell experiment. Two file formats are supported: csv (rows=cells x columns=genes) or loom (rows=genes x columns=cells)."
 
     outputs:
       regulons:
-        datatype: csv
+        datatype: [csv, yaml, gmt, dat]
         required: true
-        description: Output file containing regulons
-
+        description: "Output file containing regulons or motif enrichment results."
     params:
+      transpose:
+        datatype: boolean
+        default: false
+        description: "Transpose the expression matrix (rows=genes x columns=cells)."
       threads:
         datatype: integer
         default: 4
-        description: Number of threads to use
+        description: "Number of threads."
+      mode:
+        datatype: string
+        default: custom_multiprocessing
+        description: "Computation mode (e.g. custom_multiprocessing, dask_cluster)."
       extras:
         datatype: string
         default: ""
-        description: "Additional arguments to pass to the pyscenic command."
+        description: "Additional arguments."
 
     shell: >
-      {{ binary }} ctx {{ adjacencies }} {{ motifs }}
-      --output {{ regulons }} --num_workers {{ threads }} {{ extras }}
+      {{ binary }} ctx
+      {{ module }}
+      {% for db in databases %}{{ db }} {% endfor %}
+      {% if transpose %}--transpose{% endif %}
+      --annotations_fname {{ annotations }}
+      --expression_mtx_fname {{ expression }}
+      --mode {{ mode }}
+      --output {{ regulons }}
+      --num_workers {{ threads }}
+      {{ extras }}
 
   aucell:
     description: Score regulons using AUCell
@@ -120,6 +145,10 @@ commands:
         description: AUCell matrix saved as loom
 
     params:
+      transpose:
+        datatype: boolean
+        default: false
+        description: "Transpose the expression matrix (rows=genes x columns=cells)."
       threads:
         datatype: integer
         default: 4
@@ -131,4 +160,5 @@ commands:
 
     shell: >
       {{ binary }} aucell {{ expression }} {{ regulons }}
+      {% if transpose %}--transpose{% endif %}
       --output {{ auc_matrix }} --num_workers {{ threads }} {{ extras }}

@@ -83,7 +83,11 @@ sn_run <- function(tool_name, command, version = NULL, ...,
 
     temp_yaml <- tempfile(fileext = ".yaml")
     on.exit(unlink(temp_yaml), add = TRUE)
-    tool@environment$dependencies <- as.list(tool@environment$dependencies)
+    # tool@environment$dependencies <- as.list(tool@environment$dependencies)
+    tool@environment$dependencies <- lapply(tool@environment$dependencies, \(dep) {
+      if (is.list(dep) && "pip" %in% names(dep)) dep["pip"] <- list(as.list(dep$pip))
+      dep
+    })
     write_yaml(tool@environment, temp_yaml)
     env_path <- file.path(tool_name, version)
     .mamba_create_from_yaml(

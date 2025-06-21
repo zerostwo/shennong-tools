@@ -354,6 +354,7 @@ sn_validate_tool <- function(tool_name, version = NULL) {
         }
       }
 
+    if (is.null(command)) {
       result <- processx::run(
         command = binary,
         args = help_flag,
@@ -361,6 +362,15 @@ sn_validate_tool <- function(tool_name, version = NULL) {
         error_on_status = FALSE,
         timeout = 30 # 30 seconds timeout
       )
+    } else {
+      result <- processx::run(
+        command = binary,
+        args = c(command, help_flag),
+        env = env_vars,
+        error_on_status = FALSE,
+        timeout = 30 # 30 seconds timeout
+      )
+    }
 
       # Display raw output
       cli_rule(left = paste0("Raw Help: ", tool_name, if (!is.null(command)) paste0(" ", command) else ""))

@@ -118,8 +118,5 @@ value_types:
     description: General string parameter
     example_value: "example_value"
   boolean:
-    description: Boolean flag (true/false)
-    example_value: "TRUE"
-  logical:
-    description: Logical flag (TRUE/FALSE)
+    description: Boolean/logical flag (TRUE/FALSE)
     example_value: "TRUE"

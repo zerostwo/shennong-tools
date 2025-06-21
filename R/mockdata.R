@@ -8,30 +8,27 @@
 #' @param output_file Character. Path where the generated file should be saved.
 #'   If NULL, a temporary file will be created in tempdir().
 #' @param size Character. Size category: "minimal" (default), "small", "medium", "large".
+#'   Ignored if n_records is specified.
 #' @param n_records Integer. Number of records to generate (overrides size if specified).
 #' @param seed Integer. Random seed for reproducible generation (default: 123).
 #' @param compress Logical. Whether to compress output files (default: auto-detected from extension).
 #'   For fastq files, compression is enabled by default. For fasta and gtf files, compression is disabled by default.
-#' @param options List. Additional options specific to the datatype.
-#'   For FASTQ files, supported options include:
-#'   - `read_length`: Integer or character. Read length in bp. Common values: 50, 75, 100, 150, 250, 300.
-#'     Can also use shortcuts: "short" (50bp), "medium" (100bp), "long" (150bp),
-#'     "extra_long" (250bp), "ultra_long" (300bp). Default: 150.
-#'   - `adapters`: Character or logical. Adapter type: "none", "illumina"/"truseq", "nextera",
-#'     or TRUE/FALSE for backward compatibility. Default: "illumina".
-#'   - `adapter_contamination_rate`: Numeric. Fraction of reads with adapter sequences (0-1). Default: 0.35 (realistic for fresh sequencing data).
-#'   - `min_quality`: Integer. Minimum Phred quality score. Default: 25.
-#'   - `max_quality`: Integer. Maximum Phred quality score. Default: 40.
-#'   - `error_rate`: Numeric. Sequencing error rate (0-1). Default: 0.015.
-#'   - `read_type`: Character. "single", "R1", or "R2" for paired-end. Default: "single".
+#' @param ... Additional datatype-specific options. Use `sn_mockdata_options()` to see available options.
+#'   For FASTQ files, common options include:
+#'   - `read_length`: Read length (50, 75, 100, 150, 250, 300, or "short"/"medium"/"long"/"extra_long"/"ultra_long")
+#'   - `read_type`: "single", "R1", "R2" (affects filename when auto-generating)
+#'   - `adapters`: "none", "illumina", "nextera", or TRUE/FALSE
+#'   - `adapter_contamination_rate`: Fraction of reads with adapters (0-1)
+#'   - `min_quality`, `max_quality`: Quality score range
+#'   - `error_rate`: Sequencing error rate (0-1)
 #'
 #' @details
 #' The function supports generating mock files for all datatypes defined in the
 #' global datatypes.yaml configuration. Common supported datatypes include:
 #'
 #' **Sequence Files:**
-#' - `fasta`: Nucleotide or protein sequences (properly formatted with line breaks)
 #' - `fastq`: Raw sequencing reads with quality scores and adapters
+#' - `fasta`: Nucleotide or protein sequences (properly formatted with line breaks)
 #'
 #' **Alignment Files:**
 #' - `sam`: Sequence alignment (text format)
@@ -70,52 +67,29 @@
 #' sn_generate_mockdata("fastq", "test_reads.fastq", size = "small")
 #' sn_generate_mockdata("gtf", "test_annotation.gtf", n_records = 100)
 #'
-#' # Generate temporary files
-#' temp_fasta <- sn_generate_mockdata("fasta", NULL, size = "small")
-#' temp_fastq <- sn_generate_mockdata("fastq", NULL, size = "medium")
+#' # Generate temporary files with automatic R1/R2 naming
+#' temp_r1 <- sn_generate_mockdata("fastq", read_type = "R1", size = "small")
+#' temp_r2 <- sn_generate_mockdata("fastq", read_type = "R2", size = "small")
 #'
 #' # Generate compressed files (auto-detected or explicit)
 #' sn_generate_mockdata("fastq", "reads.fastq.gz") # Auto-compressed
 #' sn_generate_mockdata("vcf", "variants.vcf", compress = TRUE)
 #'
-#' # Generate FASTQ with custom sequencing parameters
+#' # Generate FASTQ with specific options
 #' sn_generate_mockdata("fastq", "reads_150bp.fastq.gz",
-#'   options = list(
-#'     read_length = 150, adapters = "illumina",
-#'     adapter_contamination_rate = 0.1, min_quality = 30
-#'   )
+#'   read_length = 150, adapters = "illumina",
+#'   adapter_contamination_rate = 0.1, min_quality = 30
 #' )
 #'
-#' # Generate FASTQ with different read lengths
-#' sn_generate_mockdata("fastq", "short_reads.fq.gz",
-#'   options = list(read_length = "short")
-#' ) # 50bp
-#' sn_generate_mockdata("fastq", "long_reads.fq.gz",
-#'   options = list(read_length = "extra_long")
-#' ) # 250bp
+#' # Generate FASTQ with shortcuts
+#' sn_generate_mockdata("fastq", "short_reads.fq.gz", read_length = "short") # 50bp
+#' sn_generate_mockdata("fastq", "long_reads.fq.gz", read_length = "extra_long") # 250bp
 #'
 #' # Generate FASTQ without adapters (clean reads)
-#' sn_generate_mockdata("fastq", "clean_reads.fq.gz",
-#'   options = list(adapters = "none")
-#' )
+#' sn_generate_mockdata("fastq", "clean_reads.fq.gz", adapters = "none")
 #'
-#' # Test adapter trimming with fastp (need to specify adapter sequences explicitly)
-#' # sn_run("fastp", "trim", input1 = "reads_R1.fq.gz", input2 = "reads_R2.fq.gz",
-#' #        output1 = "trimmed_R1.fq.gz", output2 = "trimmed_R2.fq.gz",
-#' #        extras = "--adapter_sequence AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
-#' #                  --adapter_sequence_r2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT")
-#'
-#' # Generate with custom options
-#' sn_generate_mockdata("fasta", "proteins.fa",
-#'   options = list(sequence_type = "protein", max_length = 200)
-#' )
-#'
-#' # Compatible files are generated automatically
-#' ref <- sn_generate_mockdata("fasta", "reference.fa", size = "small")
-#' reads_r1 <- sn_generate_mockdata("fastq", "reads_R1.fastq.gz", size = "medium")
-#' reads_r2 <- sn_generate_mockdata("fastq", "reads_R2.fastq.gz", size = "medium")
-#' genes <- sn_generate_mockdata("gtf", "genes.gtf", size = "small")
-#' # These files will use consistent chromosome names and coordinates
+#' # See available options for each datatype
+#' sn_mockdata_options("fastq")
 #' }
 sn_generate_mockdata <- function(datatype,
                                  output_file = NULL,
@@ -123,130 +97,118 @@ sn_generate_mockdata <- function(datatype,
                                  n_records = NULL,
                                  seed = 123,
                                  compress = NULL,
-                                 options = list()) {
+                                 ...) {
   # Validate datatype
   if (!.validate_datatype(datatype)) {
     cli_abort("Unsupported datatype: {.val {datatype}}. Check available datatypes with {.fun .load_datatypes}")
   }
 
+  # Collect options from ... with validation
+  options <- .validate_and_collect_options(datatype, ...)
+
   # Set random seed for reproducibility
   set.seed(seed)
 
+  # Determine final record count (n_records overrides size)
+  final_n_records <- if (!is.null(n_records)) {
+    .validate_n_records(n_records)
+  } else {
+    .get_size_records(size)
+  }
+
   # Handle NULL output_file - create temporary file
   if (is.null(output_file)) {
-    temp_dir <- file.path(tempdir(), "shennong_mockdata")
-    if (!dir.exists(temp_dir)) {
-      dir.create(temp_dir, recursive = TRUE)
-    }
-
-    # Determine compress value for temp filename if not set
-    temp_compress <- compress
-    if (is.null(temp_compress)) {
-      temp_compress <- (datatype == "fastq") # Default compression for fastq
-    }
-
-    # Generate appropriate filename based on datatype
-    filename <- .generate_temp_filename(datatype, temp_compress)
-    output_file <- file.path(temp_dir, filename)
+    output_file <- .create_temp_file_path(datatype, options, compress)
   }
 
-  # Auto-detect compression from file extension, with fastq default compression
-  if (is.null(compress)) {
-    if (grepl("\\.gz$", output_file, ignore.case = TRUE)) {
-      compress <- TRUE
-    } else if (datatype == "fastq") {
-      # Default to compressed for fastq files only
-      compress <- TRUE
-    } else {
-      # Other files (fasta, gtf, etc.) default to uncompressed
-      compress <- FALSE
-    }
-  }
-
-  # Get size-based record counts if n_records not specified
-  if (is.null(n_records)) {
-    n_records <- .get_size_records(size)
-  }
+  # Auto-detect compression from file extension, with datatype-specific defaults
+  final_compress <- .determine_compression(output_file, datatype, compress)
 
   # Create output directory if needed
-  outdir <- dirname(output_file)
-  if (!dir.exists(outdir)) {
-    dir.create(outdir, recursive = TRUE)
-  }
+  .ensure_output_directory(output_file)
 
   # Always create shared context for biological files
-  context <- NULL
-  if (datatype %in% c("fasta", "fastq", "gtf", "gff", "sam", "vcf", "bed")) {
-    context <- .get_shared_context(seed)
-  }
+  context <- .create_biological_context_if_needed(datatype, seed)
 
   # Show modern generation start message
-  cli_h2("{.emph Generating {datatype} Mock Data}")
+  cli_h2("Generating {.strong {datatype}} Mock Data")
 
   # Generate file based on datatype
   result <- switch(datatype,
-    "fasta" = .generate_fasta(output_file, n_records, options, context, compress),
-    "fastq" = .generate_fastq(output_file, n_records, options, context, compress),
-    "sam" = .generate_sam(output_file, n_records, options, context, compress),
-    "gtf" = .generate_gtf(output_file, n_records, options, context, compress),
-    "gff" = .generate_gff(output_file, n_records, options, context, compress),
-    "bed" = .generate_bed(output_file, n_records, options, context, compress),
-    "vcf" = .generate_vcf(output_file, n_records, options, context, compress),
-    "csv" = .generate_csv(output_file, n_records, options, compress),
-    "tsv" = .generate_tsv(output_file, n_records, options, compress),
-    "txt" = .generate_txt(output_file, n_records, options, compress),
-    "json" = .generate_json(output_file, n_records, options, compress),
-    "yaml" = .generate_yaml(output_file, n_records, options, compress),
-    "mtx" = .generate_mtx(output_file, n_records, options, compress),
+    "fasta" = .generate_fasta(output_file, final_n_records, options, context, final_compress),
+    "fastq" = .generate_fastq(output_file, final_n_records, options, context, final_compress),
+    "sam" = .generate_sam(output_file, final_n_records, options, context, final_compress),
+    "gtf" = .generate_gtf(output_file, final_n_records, options, context, final_compress),
+    "gff" = .generate_gff(output_file, final_n_records, options, context, final_compress),
+    "bed" = .generate_bed(output_file, final_n_records, options, context, final_compress),
+    "vcf" = .generate_vcf(output_file, final_n_records, options, context, final_compress),
+    "csv" = .generate_csv(output_file, final_n_records, options, final_compress),
+    "tsv" = .generate_tsv(output_file, final_n_records, options, final_compress),
+    "txt" = .generate_txt(output_file, final_n_records, options, final_compress),
+    "json" = .generate_json(output_file, final_n_records, options, final_compress),
+    "yaml" = .generate_yaml(output_file, final_n_records, options, final_compress),
+    "mtx" = .generate_mtx(output_file, final_n_records, options, final_compress),
     cli_abort("Mock data generation for datatype {.val {datatype}} is not yet implemented")
   )
 
-  if (file.exists(output_file)) {
-    # Modern success message with detailed file info
-    file_size <- .format_file_size(file.size(output_file))
-    file_name <- basename(output_file)
+  # Display success message and file info
+  .display_generation_summary(output_file, datatype, final_n_records, final_compress, options, context)
 
-    cli_alert_success("Generated {.strong {datatype}} file: {.file {file_name}}")
-
-    # Create info table
-    info_data <- list(
-      "Records" = format(n_records, big.mark = ","),
-      "Size" = file_size
-    )
-
-    if (compress || grepl("\\.gz$", output_file)) {
-      info_data[["Compression"]] <- "Yes (.gz)"
-    }
-
-    if (!is.null(context)) {
-      if (datatype == "fastq") {
-        info_data[["Alignment Rate"]] <- "~85-95% (realistic)"
-        info_data[["Error Rate"]] <- "~1-2%"
-        adapter_type <- options$adapters %||% "illumina"
-        if (is.logical(adapter_type)) adapter_type <- if (adapter_type) "illumina" else "none"
-        if (adapter_type != "none") {
-          adapter_name <- switch(adapter_type,
-            "illumina" = "Illumina TruSeq",
-            "truseq" = "Illumina TruSeq",
-            "nextera" = "Illumina Nextera",
-            "Custom"
-          )
-          info_data[["Adapters"]] <- adapter_name
-        }
-      }
-      info_data[["Compatibility"]] <- "Yes (consistent coordinates)"
-    }
-
-    # Display info table
-    cli_dl(info_data)
-
-    return(invisible(output_file))
-  } else {
-    cli_abort("Failed to generate mock file: {.file {output_file}}")
-  }
+  return(invisible(output_file))
 }
 
-# Removed sn_create_genome_context - now handled internally for simplicity
+#' Show Available Options for Mock Data Generation
+#'
+#' Display the available options for a specific datatype in mock data generation.
+#' This helper function makes it easier to discover what parameters can be used
+#' with `sn_generate_mockdata()`.
+#'
+#' @param datatype Character. The datatype to show options for.
+#'
+#' @return Invisibly returns the options list.
+#' @family mock data generation
+#' @concept mock data generation
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' # Show options for FASTQ files
+#' sn_mockdata_options("fastq")
+#'
+#' # Show options for FASTA files
+#' sn_mockdata_options("fasta")
+#'
+#' # Show options for CSV files
+#' sn_mockdata_options("csv")
+#' }
+sn_mockdata_options <- function(datatype) {
+  if (!.validate_datatype(datatype)) {
+    cli_abort("Unsupported datatype: {.val {datatype}}")
+  }
+
+  options_info <- .get_datatype_options(datatype)
+
+  if (length(options_info) == 0) {
+    cli_alert_info("No specific options available for datatype {.strong {datatype}}")
+    return(invisible(list()))
+  }
+
+  cli_h2("Available Options for {.strong {datatype}}")
+
+  for (option_name in names(options_info)) {
+    option_def <- options_info[[option_name]]
+    cli_li("{.strong {option_name}}: {option_def$description}")
+    if (!is.null(option_def$default)) {
+      cli_text("  Default: {.val {option_def$default}}")
+    }
+    if (!is.null(option_def$choices)) {
+      cli_text("  Choices: {.val {paste(option_def$choices, collapse = ', ')}}")
+    }
+    cli_text("")
+  }
+
+  return(invisible(options_info))
+}
 
 #' Generate Mock Data for Multiple Files
 #'
@@ -255,7 +217,7 @@ sn_generate_mockdata <- function(datatype,
 #' This function automatically creates a shared genome context for biological files.
 #'
 #' @param spec List. Specification for files to generate. Each element should be
-#'   a list with 'datatype', and optionally 'output_file', 'size', 'n_records', 'options'.
+#'   a list with 'datatype', and optionally 'output_file', 'size', 'n_records', and other options.
 #'   If 'output_file' is NULL, temporary files will be created.
 #' @param base_dir Character. Base directory for output files (default: current directory).
 #'   Only used when output_file is specified in spec.
@@ -272,14 +234,10 @@ sn_generate_mockdata <- function(datatype,
 #' # Generate a complete test dataset with specific files
 #' spec <- list(
 #'   list(datatype = "fasta", output_file = "reference.fa", size = "small"),
-#'   list(
-#'     datatype = "fastq", output_file = "reads_R1.fastq.gz",
-#'     options = list(read_type = "R1"), size = "medium"
-#'   ),
-#'   list(
-#'     datatype = "fastq", output_file = "reads_R2.fastq.gz",
-#'     options = list(read_type = "R2"), size = "medium"
-#'   ),
+#'   list(datatype = "fastq", output_file = "reads_R1.fastq.gz", 
+#'        read_type = "R1", size = "medium"),
+#'   list(datatype = "fastq", output_file = "reads_R2.fastq.gz", 
+#'        read_type = "R2", size = "medium"),
 #'   list(datatype = "gtf", output_file = "annotation.gtf", size = "small")
 #' )
 #' files <- sn_generate_mockdata_batch(spec, base_dir = "test_data/")
@@ -287,14 +245,11 @@ sn_generate_mockdata <- function(datatype,
 #' # Generate temporary compatible files
 #' temp_spec <- list(
 #'   list(datatype = "fasta", size = "small"),
-#'   list(datatype = "fastq", options = list(read_type = "R1")),
-#'   list(datatype = "fastq", options = list(read_type = "R2")),
+#'   list(datatype = "fastq", read_type = "R1"),
+#'   list(datatype = "fastq", read_type = "R2"),
 #'   list(datatype = "gtf", size = "small")
 #' )
 #' temp_files <- sn_generate_mockdata_batch(temp_spec)
-#'
-#' # Clean up temporary files when done
-#' sn_cleanup_mockdata_examples()
 #' }
 sn_generate_mockdata_batch <- function(spec,
                                        base_dir = ".",
@@ -312,7 +267,7 @@ sn_generate_mockdata_batch <- function(spec,
     }
   }
 
-  cli_h1("-- Generating Batch Mock Data --")
+  cli_h1("Generating Batch Mock Data")
   cli_alert_info("Processing {length(spec)} file specifications...")
 
   generated_files <- character(0)
@@ -321,21 +276,28 @@ sn_generate_mockdata_batch <- function(spec,
     item <- spec[[i]]
 
     # Determine output path
-    if (!is.null(item$output_file)) {
-      output_path <- file.path(base_dir, item$output_file)
+    output_path <- if (!is.null(item$output_file)) {
+      file.path(base_dir, item$output_file)
     } else {
-      output_path <- NULL # Will create temporary file
+      NULL # Will create temporary file
     }
 
-    result <- sn_generate_mockdata(
-      datatype = item$datatype,
-      output_file = output_path,
-      size = item$size %||% "minimal",
-      n_records = item$n_records,
-      seed = seed,
-      compress = item$compress %||% compress,
-      options = item$options %||% list()
-    )
+    # Extract options (everything except known parameters)
+    known_params <- c("datatype", "output_file", "size", "n_records", "compress")
+    options_args <- item[!names(item) %in% known_params]
+
+    # Generate file
+    result <- do.call(sn_generate_mockdata, c(
+      list(
+        datatype = item$datatype,
+        output_file = output_path,
+        size = item$size %||% "minimal",
+        n_records = item$n_records,
+        seed = seed,
+        compress = item$compress %||% compress
+      ),
+      options_args
+    ))
 
     generated_files <- c(generated_files, result)
   }
@@ -657,35 +619,177 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
 # Internal helper functions ------------------------------------------------
 
-#' Get Record Count Based on Size Category
+#' Validate and Collect Options from ...
 #' @keywords internal
-.get_size_records <- function(size) {
-  switch(size,
-    "minimal" = 5,
-    "small" = 100,
-    "medium" = 1000,
-    "large" = 10000,
-    stop("Invalid size category. Use: minimal, small, medium, large")
+.validate_and_collect_options <- function(datatype, ...) {
+  options <- list(...)
+  
+  # Get valid options for this datatype
+  valid_options <- .get_datatype_options(datatype)
+  
+  # Validate provided options
+  if (length(options) > 0 && length(valid_options) > 0) {
+    invalid_options <- setdiff(names(options), names(valid_options))
+    if (length(invalid_options) > 0) {
+      cli_warn("Unknown options for {.strong {datatype}}: {.val {paste(invalid_options, collapse = ', ')}}. Use {.fun sn_mockdata_options} to see valid options.")
+    }
+  }
+  
+  return(options)
+}
+
+#' Get Available Options for Datatype
+#' @keywords internal
+.get_datatype_options <- function(datatype) {
+  switch(datatype,
+    "fastq" = list(
+      read_length = list(
+        description = "Read length in bp or shortcut ('short'=50, 'medium'=100, 'long'=150, 'extra_long'=250, 'ultra_long'=300)",
+        default = 150,
+        choices = c(50, 75, 100, 150, 250, 300, "short", "medium", "long", "extra_long", "ultra_long")
+      ),
+      read_type = list(
+        description = "Read type for paired-end sequencing (affects filename when auto-generating)",
+        default = "single",
+        choices = c("single", "R1", "R2")
+      ),
+      adapters = list(
+        description = "Adapter contamination type",
+        default = "illumina", 
+        choices = c("none", "illumina", "truseq", "nextera", TRUE, FALSE)
+      ),
+      adapter_contamination_rate = list(
+        description = "Fraction of reads with adapter sequences (0-1)",
+        default = 0.35
+      ),
+      min_quality = list(
+        description = "Minimum Phred quality score",
+        default = 25
+      ),
+      max_quality = list(
+        description = "Maximum Phred quality score", 
+        default = 40
+      ),
+      error_rate = list(
+        description = "Sequencing error rate (0-1)",
+        default = 0.015
+      ),
+      non_aligned_rate = list(
+        description = "Fraction of non-aligned reads (0-1)",
+        default = 0.1
+      )
+    ),
+    "fasta" = list(
+      sequence_type = list(
+        description = "Type of sequences to generate",
+        default = "nucleotide",
+        choices = c("nucleotide", "protein")
+      ),
+      min_length = list(
+        description = "Minimum sequence length",
+        default = 200
+      ),
+      max_length = list(
+        description = "Maximum sequence length",
+        default = 2000
+      )
+    ),
+    "csv" = list(
+      columns = list(
+        description = "Column names for the CSV file",
+        default = c("sample_id", "value1", "value2", "category")
+      )
+    ),
+    "tsv" = list(
+      columns = list(
+        description = "Column names for the TSV file",
+        default = c("gene_id", "log2FC", "pvalue", "padj")
+      )
+    ),
+    "txt" = list(
+      content_type = list(
+        description = "Type of text content to generate",
+        default = "log",
+        choices = c("log", "generic")
+      )
+    ),
+    "json" = list(
+      content_type = list(
+        description = "Type of JSON content to generate",
+        default = "config",
+        choices = c("config", "data")
+      )
+    ),
+    "mtx" = list(
+      n_genes = list(
+        description = "Number of genes (rows)",
+        default = 1000
+      ),
+      n_cells = list(
+        description = "Number of cells (columns)",
+        default = 500
+      ),
+      sparsity = list(
+        description = "Fraction of non-zero entries",
+        default = 0.1
+      )
+    ),
+    "sam" = list(
+      reference_name = list(
+        description = "Reference chromosome name",
+        default = "chr1"
+      ),
+      reference_length = list(
+        description = "Reference chromosome length",
+        default = 10000
+      )
+    ),
+    # Default: no specific options
+    list()
   )
 }
 
-#' Generate Example Filename Based on Context
+#' Validate n_records Parameter
 #' @keywords internal
-.generate_example_filename <- function(datatype, param_name, input_output, compress = FALSE) {
-  # Get default extension from datatype
+.validate_n_records <- function(n_records) {
+  if (!is.numeric(n_records) || length(n_records) != 1 || n_records < 1) {
+    cli_abort("n_records must be a positive integer")
+  }
+  as.integer(n_records)
+}
+
+#' Create Temporary File Path with Smart Naming
+#' @keywords internal
+.create_temp_file_path <- function(datatype, options, compress) {
+  temp_dir <- file.path(tempdir(), "shennong_mockdata")
+  if (!dir.exists(temp_dir)) {
+    dir.create(temp_dir, recursive = TRUE)
+  }
+  
+  # Determine compression for filename generation
+  temp_compress <- compress %||% (datatype == "fastq")
+  
+  # Generate smart filename considering options
+  filename <- .generate_smart_temp_filename(datatype, options, temp_compress)
+  
+  return(file.path(temp_dir, filename))
+}
+
+#' Generate Smart Temporary Filename with R1/R2 Support
+#' @keywords internal
+.generate_smart_temp_filename <- function(datatype, options, compress) {
+  # Get extensions for this datatype
   datatypes <- .load_datatypes()
   extensions <- datatypes$file_types[[datatype]]$extensions
-
+  
   if (is.null(extensions) || length(extensions) == 0) {
-    ext <- ""
+    ext <- glue(".{datatype}")
   } else {
     # Choose appropriate extension
     if (compress && any(grepl("\\.gz$", extensions))) {
-      # Prefer compressed version
       compressed_exts <- extensions[grepl("\\.gz$", extensions)]
       ext <- compressed_exts[1]
     } else {
-      # Prefer uncompressed version
       uncompressed_exts <- extensions[!grepl("\\.gz$", extensions)]
       if (length(uncompressed_exts) > 0) {
         ext <- uncompressed_exts[1]
@@ -694,61 +798,175 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
       }
     }
   }
+  
+  # Generate timestamp and random suffix
+  timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+  random_suffix <- sample(1000:9999, 1)
+  
+  # Base name with smart R1/R2 handling
+  base_name <- switch(datatype,
+    "fasta" = "mock_genome",
+    "fastq" = .get_smart_fastq_basename(options),
+    "sam" = "mock_alignment",
+    "bam" = "mock_alignment", 
+    "gtf" = "mock_annotation",
+    "gff" = "mock_annotation",
+    "bed" = "mock_regions",
+    "vcf" = "mock_variants",
+    "csv" = "mock_data",
+    "tsv" = "mock_results",
+    "txt" = "mock_log",
+    "json" = "mock_config",
+    "yaml" = "mock_config",
+    "mtx" = "mock_matrix",
+    glue("mock_{datatype}")
+  )
+  
+  return(glue("{base_name}_{timestamp}_{random_suffix}{ext}"))
+}
 
-  # Generate context-aware base name
-  if (!is.null(param_name)) {
-    param_lower <- tolower(param_name)
-
-    # Context-specific naming
-    if (grepl("read1|input1|r1|forward", param_lower)) {
-      base_name <- "sample_R1"
-    } else if (grepl("read2|input2|r2|reverse", param_lower)) {
-      base_name <- "sample_R2"
-    } else if (grepl("reference|ref|genome", param_lower)) {
-      base_name <- "reference"
-    } else if (grepl("annotation|gtf|gff", param_lower)) {
-      base_name <- "annotation"
-    } else if (grepl("variant|vcf", param_lower)) {
-      base_name <- "variants"
-    } else if (grepl("output|result", param_lower)) {
-      base_name <- "output"
-    } else {
-      base_name <- param_name
-    }
+#' Get Smart FASTQ Base Name with R1/R2 Support
+#' @keywords internal
+.get_smart_fastq_basename <- function(options) {
+  read_type <- options$read_type %||% "single"
+  
+  if (read_type == "R1") {
+    return("mock_reads_R1")
+  } else if (read_type == "R2") {
+    return("mock_reads_R2")
   } else {
-    # Default names by datatype
-    base_name <- switch(datatype,
-      "fasta" = "sequences",
-      "fastq" = "reads",
-      "sam" = "alignment",
-      "bam" = "alignment",
-      "gtf" = "annotation",
-      "gff" = "annotation",
-      "bed" = "regions",
-      "vcf" = "variants",
-      "csv" = "data",
-      "tsv" = "results",
-      "txt" = "log",
-      "json" = "config",
-      "yaml" = "config",
-      "mtx" = "matrix",
-      "mock_file"
-    )
+    return("mock_reads")
   }
+}
 
-  # Add prefix for output files
-  if (input_output == "output") {
-    base_name <- paste0("output_", base_name)
+#' Determine Final Compression Setting  
+#' @keywords internal
+.determine_compression <- function(output_file, datatype, compress) {
+  if (is.null(compress)) {
+    if (grepl("\\.gz$", output_file, ignore.case = TRUE)) {
+      return(TRUE)
+    } else if (datatype == "fastq") {
+      return(TRUE) # Default to compressed for fastq
+    } else {
+      return(FALSE) # Other files default to uncompressed
+    }
   }
+  return(compress)
+}
 
-  return(paste0(base_name, ext))
+#' Ensure Output Directory Exists
+#' @keywords internal
+.ensure_output_directory <- function(output_file) {
+  outdir <- dirname(output_file)
+  if (!dir.exists(outdir)) {
+    dir.create(outdir, recursive = TRUE)
+  }
+}
+
+#' Create Biological Context If Needed
+#' @keywords internal
+.create_biological_context_if_needed <- function(datatype, seed) {
+  if (datatype %in% c("fasta", "fastq", "gtf", "gff", "sam", "vcf", "bed")) {
+    return(.get_shared_context(seed))
+  }
+  return(NULL)
+}
+
+#' Display Generation Summary with Modern Formatting
+#' @keywords internal
+.display_generation_summary <- function(output_file, datatype, n_records, compress, options, context) {
+  if (!file.exists(output_file)) {
+    cli_abort("Failed to generate mock file: {.file {output_file}}")
+  }
+  
+  # Modern success message with detailed file info
+  file_size <- .format_file_size(file.size(output_file))
+  file_name <- basename(output_file)
+  
+  cli_alert_success("Generated {.strong {datatype}} file: {.file {file_name}}")
+  
+  # Create info table
+  info_data <- list(
+    "Records" = format(n_records, big.mark = ","),
+    "Size" = file_size
+  )
+  
+  if (compress || grepl("\\.gz$", output_file)) {
+    info_data[["Compression"]] <- "Yes (.gz)"
+  }
+  
+  # Add datatype-specific info
+  .add_datatype_specific_info(info_data, datatype, options, context)
+  
+  # Display info table
+  cli_dl(info_data)
+}
+
+#' Add Datatype-Specific Information to Summary
+#' @keywords internal
+.add_datatype_specific_info <- function(info_data, datatype, options, context) {
+  if (!is.null(context)) {
+    if (datatype == "fastq") {
+      info_data[["Alignment Rate"]] <- "~85-95% (realistic)"
+      info_data[["Error Rate"]] <- "~1-2%"
+      
+      adapter_type <- options$adapters %||% "illumina"
+      if (is.logical(adapter_type)) adapter_type <- if (adapter_type) "illumina" else "none"
+      
+      if (adapter_type != "none") {
+        adapter_name <- switch(adapter_type,
+          "illumina" = "Illumina TruSeq",
+          "truseq" = "Illumina TruSeq", 
+          "nextera" = "Illumina Nextera",
+          "Custom"
+        )
+        info_data[["Adapters"]] <- adapter_name
+      }
+      
+      read_type <- options$read_type %||% "single"
+      if (read_type %in% c("R1", "R2")) {
+        info_data[["Read Type"]] <- read_type
+      }
+    }
+    info_data[["Compatibility"]] <- "Yes (consistent coordinates)"
+  }
+  
+  # Add read length info for FASTQ
+  if (datatype == "fastq") {
+    read_length <- options$read_length %||% 150
+    if (is.character(read_length)) {
+      actual_length <- switch(read_length,
+        "short" = 50,
+        "medium" = 100, 
+        "long" = 150,
+        "extra_long" = 250,
+        "ultra_long" = 300,
+        150
+      )
+      info_data[["Read Length"]] <- glue("{actual_length}bp ({read_length})")
+    } else {
+      info_data[["Read Length"]] <- glue("{read_length}bp")
+    }
+  }
+}
+
+#' Get Record Count Based on Size Category
+#' @keywords internal
+.get_size_records <- function(size) {
+  switch(size,
+    "minimal" = 5,
+    "small" = 100,
+    "medium" = 1000,
+    "large" = 10000,
+    cli_abort("Invalid size category. Use: minimal, small, medium, large")
+  )
 }
 
 #' Get Shared Context for Compatible Files (Internal)
 #' @keywords internal
 .get_shared_context <- function(seed) {
   # Create a shared environment to store context across calls
-  env_name <- paste0("sn_shared_context_", seed)
+  env_name <- glue("sn_shared_context_{seed}")
 
   if (!exists(env_name, envir = .GlobalEnv)) {
     # Create new context
@@ -764,7 +982,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 .create_internal_context <- function(seed) {
   set.seed(seed)
 
-  chromosomes <- paste0("chr", 1:3)
+  chromosomes <- glue("chr{1:3}")
   chr_lengths <- setNames(sample(5000:15000, length(chromosomes)), chromosomes)
 
   # Generate sequences
@@ -783,96 +1001,6 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
     sequences = sequences,
     genes = genes
   )
-}
-
-#' Format FASTA Sequence with Proper Line Breaks
-#' @keywords internal
-.format_fasta_sequence <- function(sequence, line_length = 60) {
-  if (nchar(sequence) <= line_length) {
-    return(sequence)
-  }
-
-  # Split sequence into chunks of specified length
-  seq_length <- nchar(sequence)
-  chunks <- character()
-
-  for (i in seq(1, seq_length, by = line_length)) {
-    end_pos <- min(i + line_length - 1, seq_length)
-    chunks <- c(chunks, substr(sequence, i, end_pos))
-  }
-
-  return(chunks)
-}
-
-#' Write Lines with Optional Compression
-#' @keywords internal
-.write_lines <- function(lines, output_file, compress = FALSE) {
-  if (compress && !grepl("\\.gz$", output_file)) {
-    output_file <- paste0(output_file, ".gz")
-  }
-
-  if (compress || grepl("\\.gz$", output_file)) {
-    # Write compressed
-    con <- gzfile(output_file, "wt")
-    writeLines(lines, con)
-    close(con)
-  } else {
-    # Write uncompressed
-    writeLines(lines, output_file)
-  }
-
-  return(output_file)
-}
-
-#' Generate Temporary Filename Based on Datatype
-#' @keywords internal
-.generate_temp_filename <- function(datatype, compress) {
-  # Get default extension from datatype
-  datatypes <- .load_datatypes()
-  extensions <- datatypes$file_types[[datatype]]$extensions
-
-  if (is.null(extensions) || length(extensions) == 0) {
-    ext <- paste0(".", datatype)
-  } else {
-    # Choose appropriate extension
-    if (!is.null(compress) && compress && any(grepl("\\.gz$", extensions))) {
-      # Prefer compressed version
-      compressed_exts <- extensions[grepl("\\.gz$", extensions)]
-      ext <- compressed_exts[1]
-    } else {
-      # Prefer uncompressed version
-      uncompressed_exts <- extensions[!grepl("\\.gz$", extensions)]
-      if (length(uncompressed_exts) > 0) {
-        ext <- uncompressed_exts[1]
-      } else {
-        ext <- extensions[1]
-      }
-    }
-  }
-
-  # Generate timestamp-based filename
-  timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
-  random_suffix <- sample(1000:9999, 1)
-
-  base_name <- switch(datatype,
-    "fasta" = "mock_genome",
-    "fastq" = "mock_reads",
-    "sam" = "mock_alignment",
-    "bam" = "mock_alignment",
-    "gtf" = "mock_annotation",
-    "gff" = "mock_annotation",
-    "bed" = "mock_regions",
-    "vcf" = "mock_variants",
-    "csv" = "mock_data",
-    "tsv" = "mock_results",
-    "txt" = "mock_log",
-    "json" = "mock_config",
-    "yaml" = "mock_config",
-    "mtx" = "mock_matrix",
-    paste0("mock_", datatype)
-  )
-
-  return(paste0(base_name, "_", timestamp, "_", random_suffix, ext))
 }
 
 #' Generate Random DNA Sequence
@@ -910,7 +1038,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
       strand <- sample(c("+", "-"), 1)
 
       genes <- rbind(genes, data.frame(
-        gene_id = paste0("gene_", sprintf("%04d", gene_counter)),
+        gene_id = glue("gene_{sprintf('%04d', gene_counter)}"),
         chr = chr,
         start = start_pos,
         end = end_pos,
@@ -928,6 +1056,45 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
   return(genes)
 }
 
+#' Format FASTA Sequence with Proper Line Breaks
+#' @keywords internal
+.format_fasta_sequence <- function(sequence, line_length = 60) {
+  if (nchar(sequence) <= line_length) {
+    return(sequence)
+  }
+
+  # Split sequence into chunks of specified length
+  seq_length <- nchar(sequence)
+  chunks <- character()
+
+  for (i in seq(1, seq_length, by = line_length)) {
+    end_pos <- min(i + line_length - 1, seq_length)
+    chunks <- c(chunks, substr(sequence, i, end_pos))
+  }
+
+  return(chunks)
+}
+
+#' Write Lines with Optional Compression
+#' @keywords internal
+.write_lines <- function(lines, output_file, compress = FALSE) {
+  if (compress && !grepl("\\.gz$", output_file)) {
+    output_file <- glue("{output_file}.gz")
+  }
+
+  if (compress || grepl("\\.gz$", output_file)) {
+    # Write compressed
+    con <- gzfile(output_file, "wt")
+    writeLines(lines, con)
+    close(con)
+  } else {
+    # Write uncompressed
+    writeLines(lines, output_file)
+  }
+
+  return(output_file)
+}
+
 #' Generate Mock FASTA File
 #' @keywords internal
 .generate_fasta <- function(output_file, n_records, options, genome_context = NULL, compress) {
@@ -941,7 +1108,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
     # Use genome context to generate consistent sequences
     for (chr in names(genome_context$sequences)) {
       chr_seq <- genome_context$sequences[[chr]]
-      header <- paste0(">", chr, " length=", nchar(chr_seq))
+      header <- glue(">{chr} length={nchar(chr_seq)}")
 
       # Format sequence with proper line breaks
       formatted_seq <- .format_fasta_sequence(chr_seq)
@@ -962,9 +1129,9 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
       # Create header
       if (sequence_type == "protein") {
-        header <- paste0(">protein_", sprintf("%03d", i), " length=", seq_length)
+        header <- glue(">protein_{sprintf('%03d', i)} length={seq_length}")
       } else {
-        header <- paste0(">chr", sample(1:5, 1), "_contig_", sprintf("%03d", i), " length=", seq_length)
+        header <- glue(">chr{sample(1:5, 1)}_contig_{sprintf('%03d', i)} length={seq_length}")
       }
 
       # Format sequence with proper line breaks
@@ -1075,7 +1242,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
           # Replace end of sequence with adapter (simulate read-through)
           replace_start <- read_length - adapter_length + 1
-          sequence <- paste0(substr(sequence, 1, replace_start - 1), partial_adapter)
+          sequence <- glue("{substr(sequence, 1, replace_start - 1)}{partial_adapter}")
         }
       }
 
@@ -1085,9 +1252,9 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
       quality_string <- rawToChar(as.raw(qualities + 33), multiple = FALSE)
 
       # Read identifier with chromosome info
-      read_id <- paste0("@read_", sprintf("%06d", read_counter), "_", chr, ":", start_pos)
+      read_id <- glue("@read_{sprintf('%06d', read_counter)}_{chr}:{start_pos}")
       if (read_type %in% c("R1", "R2")) {
-        read_id <- paste0(read_id, "/", substr(read_type, 2, 2))
+        read_id <- glue("{read_id}/{substr(read_type, 2, 2)}")
       }
 
       # FASTQ format
@@ -1128,7 +1295,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
         # Replace end of sequence with adapter
         replace_start <- read_length - adapter_length + 1
-        sequence <- paste0(substr(sequence, 1, replace_start - 1), partial_adapter)
+        sequence <- glue("{substr(sequence, 1, replace_start - 1)}{partial_adapter}")
       }
 
       # Generate quality scores
@@ -1137,9 +1304,9 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
       quality_string <- rawToChar(as.raw(qualities + 33), multiple = FALSE)
 
       # Read identifier for non-aligned read
-      read_id <- paste0("@read_", sprintf("%06d", read_counter), "_random")
+      read_id <- glue("@read_{sprintf('%06d', read_counter)}_random")
       if (read_type %in% c("R1", "R2")) {
-        read_id <- paste0(read_id, "/", substr(read_type, 2, 2))
+        read_id <- glue("{read_id}/{substr(read_type, 2, 2)}")
       }
 
       # FASTQ format
@@ -1179,7 +1346,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
         partial_adapter <- substr(adapter_seq, 1, adapter_length)
 
         replace_start <- read_length - adapter_length + 1
-        sequence <- paste0(substr(sequence, 1, replace_start - 1), partial_adapter)
+        sequence <- glue("{substr(sequence, 1, replace_start - 1)}{partial_adapter}")
       }
 
       # Quality scores
@@ -1190,7 +1357,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
       # FASTQ format
       lines <- c(
         lines,
-        paste0("@read_", sprintf("%06d", i)),
+        glue("@read_{sprintf('%06d', i)}"),
         sequence,
         "+",
         quality_string
@@ -1277,7 +1444,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
     # Add reference sequences to header
     for (chr in genome_context$chromosomes) {
       chr_len <- genome_context$chr_lengths[chr]
-      lines <- c(lines, paste0("@SQ\tSN:", chr, "\tLN:", chr_len))
+      lines <- c(lines, glue("@SQ\tSN:{chr}\tLN:{chr_len}"))
     }
 
     chromosomes <- genome_context$chromosomes
@@ -1286,7 +1453,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
     # Default reference
     reference_name <- options$reference_name %||% "chr1"
     reference_length <- options$reference_length %||% 10000
-    lines <- c(lines, paste0("@SQ\tSN:", reference_name, "\tLN:", reference_length))
+    lines <- c(lines, glue("@SQ\tSN:{reference_name}\tLN:{reference_length}"))
 
     chromosomes <- reference_name
     chr_lengths <- setNames(reference_length, reference_name)
@@ -1301,12 +1468,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
     lines <- c(
       lines,
-      paste0(
-        "read_", i, "\t0\t", chr, "\t", pos, "\t", mapq,
-        "\t100M\t*\t0\t0\t",
-        paste(sample(c("A", "T", "C", "G"), 100, replace = TRUE), collapse = ""),
-        "\t", paste(rep("I", 100), collapse = "")
-      )
+      glue("read_{i}\t0\t{chr}\t{pos}\t{mapq}\t100M\t*\t0\t0\t{paste(sample(c('A', 'T', 'C', 'G'), 100, replace = TRUE), collapse = '')}\t{paste(rep('I', 100), collapse = '')}")
     )
   }
 
@@ -1317,8 +1479,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
 #' Generate Mock GTF File
 #' @keywords internal
-.generate_gtf <- function(
-    output_file, n_records, options, genome_context = NULL, compress) {
+.generate_gtf <- function(output_file, n_records, options, genome_context = NULL, compress) {
   lines <- character(0)
 
   if (!is.null(genome_context)) {
@@ -1333,19 +1494,16 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
     for (i in seq_len(nrow(genes_info))) {
       gene <- genes_info[i, ]
 
-      attributes <- paste0('gene_id "', gene$gene_id, '"; transcript_id "', gene$gene_id, '_tx1";')
+      attributes <- glue('gene_id "{gene$gene_id}"; transcript_id "{gene$gene_id}_tx1";')
 
       lines <- c(
         lines,
-        paste(gene$chr, "mock_annotation", "exon", gene$start, gene$end,
-          ".", gene$strand, ".", attributes,
-          sep = "\t"
-        )
+        glue("{gene$chr}\tmock_annotation\texon\t{gene$start}\t{gene$end}\t.\t{gene$strand}\t.\t{attributes}")
       )
     }
   } else {
     # Generate random GTF records
-    chromosomes <- options$chromosomes %||% paste0("chr", 1:3)
+    chromosomes <- options$chromosomes %||% glue("chr{1:3}")
 
     gene_id <- 1
 
@@ -1355,11 +1513,11 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
       end <- start + sample(500:5000, 1)
       strand <- sample(c("+", "-"), 1)
 
-      attributes <- paste0('gene_id "gene_', gene_id, '"; transcript_id "tx_', gene_id, '";')
+      attributes <- glue('gene_id "gene_{gene_id}"; transcript_id "tx_{gene_id}";')
 
       lines <- c(
         lines,
-        paste(chr, "test", "exon", start, end, ".", strand, ".", attributes, sep = "\t")
+        glue("{chr}\ttest\texon\t{start}\t{end}\t.\t{strand}\t.\t{attributes}")
       )
 
       gene_id <- gene_id + 1
@@ -1389,19 +1547,16 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
     for (i in seq_len(nrow(genes_info))) {
       gene <- genes_info[i, ]
 
-      attributes <- paste0("ID=", gene$gene_id, ";Name=", gene$gene_id)
+      attributes <- glue("ID={gene$gene_id};Name={gene$gene_id}")
 
       lines <- c(
         lines,
-        paste(gene$chr, "mock_annotation", "gene", gene$start, gene$end,
-          ".", gene$strand, ".", attributes,
-          sep = "\t"
-        )
+        glue("{gene$chr}\tmock_annotation\tgene\t{gene$start}\t{gene$end}\t.\t{gene$strand}\t.\t{attributes}")
       )
     }
   } else {
     # Generate random GFF records
-    chromosomes <- options$chromosomes %||% paste0("chr", 1:3)
+    chromosomes <- options$chromosomes %||% glue("chr{1:3}")
 
     for (i in seq_len(n_records)) {
       chr <- sample(chromosomes, 1)
@@ -1409,11 +1564,11 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
       end <- start + sample(500:5000, 1)
       strand <- sample(c("+", "-"), 1)
 
-      attributes <- paste0("ID=gene_", i, ";Name=gene_", i)
+      attributes <- glue("ID=gene_{i};Name=gene_{i}")
 
       lines <- c(
         lines,
-        paste(chr, "test", "gene", start, end, ".", strand, ".", attributes, sep = "\t")
+        glue("{chr}\ttest\tgene\t{start}\t{end}\t.\t{strand}\t.\t{attributes}")
       )
     }
   }
@@ -1441,12 +1596,12 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
       lines <- c(
         lines,
-        paste(chr, start, end, paste0("region_", i), sep = "\t")
+        glue("{chr}\t{start}\t{end}\tregion_{i}")
       )
     }
   } else {
     # Generate random BED records
-    chromosomes <- options$chromosomes %||% paste0("chr", 1:3)
+    chromosomes <- options$chromosomes %||% glue("chr{1:3}")
 
     for (i in seq_len(n_records)) {
       chr <- sample(chromosomes, 1)
@@ -1455,7 +1610,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
       lines <- c(
         lines,
-        paste(chr, start, end, paste0("region_", i), sep = "\t")
+        glue("{chr}\t{start}\t{end}\tregion_{i}")
       )
     }
   }
@@ -1481,7 +1636,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
     # Add chromosome info to header
     for (chr in genome_context$chromosomes) {
       chr_len <- genome_context$chr_lengths[chr]
-      lines <- c(lines, paste0("##contig=<ID=", chr, ",length=", chr_len, ">"))
+      lines <- c(lines, glue("##contig=<ID={chr},length={chr_len}>"))
     }
   }
 
@@ -1502,12 +1657,12 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
       lines <- c(
         lines,
-        paste(chr, pos, paste0("var_", i), ref, alt, qual, "PASS", ".", sep = "\t")
+        glue("{chr}\t{pos}\tvar_{i}\t{ref}\t{alt}\t{qual}\tPASS\t.")
       )
     }
   } else {
     # Generate random variants
-    chromosomes <- options$chromosomes %||% paste0("chr", 1:3)
+    chromosomes <- options$chromosomes %||% glue("chr{1:3}")
 
     for (i in seq_len(n_records)) {
       chr <- sample(chromosomes, 1)
@@ -1518,7 +1673,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
       lines <- c(
         lines,
-        paste(chr, pos, paste0("var_", i), ref, alt, qual, "PASS", ".", sep = "\t")
+        glue("{chr}\t{pos}\tvar_{i}\t{ref}\t{alt}\t{qual}\tPASS\t.")
       )
     }
   }
@@ -1534,7 +1689,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
   columns <- options$columns %||% c("sample_id", "value1", "value2", "category")
 
   data_list <- list()
-  data_list[[columns[1]]] <- paste0("sample_", seq_len(n_records))
+  data_list[[columns[1]]] <- glue("sample_{seq_len(n_records)}")
 
   for (col in columns[-1]) {
     if (grepl("value|score|count", col, ignore.case = TRUE)) {
@@ -1542,7 +1697,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
     } else if (grepl("category|type|group", col, ignore.case = TRUE)) {
       data_list[[col]] <- sample(c("A", "B", "C"), n_records, replace = TRUE)
     } else {
-      data_list[[col]] <- paste0(col, "_", seq_len(n_records))
+      data_list[[col]] <- glue("{col}_{seq_len(n_records)}")
     }
   }
 
@@ -1550,7 +1705,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
   # Handle compression for CSV
   if (compress && !grepl("\\.gz$", output_file)) {
-    output_file <- paste0(output_file, ".gz")
+    output_file <- glue("{output_file}.gz")
   }
 
   if (compress || grepl("\\.gz$", output_file)) {
@@ -1570,7 +1725,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
   columns <- options$columns %||% c("gene_id", "log2FC", "pvalue", "padj")
 
   data_list <- list()
-  data_list[[columns[1]]] <- paste0("gene_", seq_len(n_records))
+  data_list[[columns[1]]] <- glue("gene_{seq_len(n_records)}")
 
   for (col in columns[-1]) {
     if (grepl("pvalue|padj|fdr", col, ignore.case = TRUE)) {
@@ -1586,7 +1741,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
 
   # Handle compression for TSV
   if (compress && !grepl("\\.gz$", output_file)) {
-    output_file <- paste0(output_file, ".gz")
+    output_file <- glue("{output_file}.gz")
   }
 
   if (compress || grepl("\\.gz$", output_file)) {
@@ -1610,11 +1765,11 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
     for (i in seq_len(n_records)) {
       timestamp <- format(Sys.time() + i, "%Y-%m-%d %H:%M:%S")
       level <- sample(c("INFO", "WARNING", "ERROR"), 1, prob = c(0.7, 0.2, 0.1))
-      message <- paste("Process step", i, "completed with", sample(c("success", "warnings"), 1))
-      lines <- c(lines, paste(timestamp, level, message))
+      message <- glue("Process step {i} completed with {sample(c('success', 'warnings'), 1)}")
+      lines <- c(lines, glue("{timestamp} {level} {message}"))
     }
   } else {
-    lines <- paste("Line", seq_len(n_records), "- Mock text content for testing")
+    lines <- glue("Line {seq_len(n_records)} - Mock text content for testing")
   }
 
   # Write with optional compression
@@ -1636,14 +1791,14 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
         memory = "8G",
         quality_threshold = 20
       ),
-      input_files = paste0("input_", seq_len(min(n_records, 5)), ".fastq"),
+      input_files = glue("input_{seq_len(min(n_records, 5))}.fastq"),
       outdirectory = "results/"
     )
   } else {
     config <- list(
       data = lapply(seq_len(n_records), function(i) {
         list(
-          id = paste0("item_", i),
+          id = glue("item_{i}"),
           value = runif(1, 0, 100),
           category = sample(c("A", "B", "C"), 1)
         )
@@ -1669,15 +1824,16 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
   )
 
   for (i in seq_len(n_records)) {
-    param_name <- paste0("param_", i)
+    param_name <- glue("param_{i}")
+    param_type <- sample(c("string", "integer", "float"), 1)
     config$parameters[[param_name]] <- list(
-      type = sample(c("string", "integer", "float"), 1),
-      default = switch(sample(c("string", "integer", "float"), 1),
-        "string" = paste0("value_", i),
+      type = param_type,
+      default = switch(param_type,
+        "string" = glue("value_{i}"),
         "integer" = sample(1:100, 1),
         "float" = round(runif(1, 0, 10), 2)
       ),
-      description = paste("Description for parameter", i)
+      description = glue("Description for parameter {i}")
     )
   }
 
@@ -1701,7 +1857,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
   lines <- c(
     lines,
     "%%MatrixMarket matrix coordinate integer general",
-    paste(n_genes, n_cells, round(n_genes * n_cells * sparsity))
+    glue("{n_genes} {n_cells} {round(n_genes * n_cells * sparsity)}")
   )
 
   # Generate sparse matrix entries
@@ -1712,7 +1868,7 @@ sn_cleanup_mockdata_examples <- function(temp_dir = NULL, pattern = "*") {
     cell_idx <- sample(1:n_cells, 1)
     count <- sample(1:50, 1)
 
-    lines <- c(lines, paste(gene_idx, cell_idx, count))
+    lines <- c(lines, glue("{gene_idx} {cell_idx} {count}"))
   }
 
   # Write with optional compression

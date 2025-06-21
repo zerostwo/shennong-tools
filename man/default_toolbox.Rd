@@ -87,7 +87,6 @@ my_toolbox <- sn_add_tool(my_toolbox, "custom_tool", yaml = "my_tool.yaml")
 \code{\link{sn_get_toolbox_info}} for toolbox information
 
 Other tool management: 
-\code{\link{.validate_tool_legacy}()},
 \code{\link{sn_add_tool}()},
 \code{\link{sn_check_user_toolbox}()},
 \code{\link{sn_diagnose_tool}()},

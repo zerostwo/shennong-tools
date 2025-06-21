@@ -238,7 +238,8 @@ sn_install_tool <- function(tool_name,
       # Use run for better error handling and output capture
       result <- run(
         command = mamba,
-        args = c(subcommand, options)
+        args = c(subcommand, options),
+        echo_cmd = TRUE
       )
 
       return(list(

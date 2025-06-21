@@ -11,7 +11,7 @@ sn_generate_mockdata(
   n_records = NULL,
   seed = 123,
   compress = NULL,
-  options = list()
+  ...
 )
 }
 \arguments{
@@ -20,7 +20,8 @@ sn_generate_mockdata(
 \item{output_file}{Character. Path where the generated file should be saved.
 If NULL, a temporary file will be created in tempdir().}
 
-\item{size}{Character. Size category: "minimal" (default), "small", "medium", "large".}
+\item{size}{Character. Size category: "minimal" (default), "small", "medium", "large".
+Ignored if n_records is specified.}
 
 \item{n_records}{Integer. Number of records to generate (overrides size if specified).}
 
@@ -29,18 +30,14 @@ If NULL, a temporary file will be created in tempdir().}
 \item{compress}{Logical. Whether to compress output files (default: auto-detected from extension).
 For fastq files, compression is enabled by default. For fasta and gtf files, compression is disabled by default.}
 
-\item{options}{List. Additional options specific to the datatype.
-For FASTQ files, supported options include:
-- `read_length`: Integer or character. Read length in bp. Common values: 50, 75, 100, 150, 250, 300.
-  Can also use shortcuts: "short" (50bp), "medium" (100bp), "long" (150bp),
-  "extra_long" (250bp), "ultra_long" (300bp). Default: 150.
-- `adapters`: Character or logical. Adapter type: "none", "illumina"/"truseq", "nextera",
-  or TRUE/FALSE for backward compatibility. Default: "illumina".
-- `adapter_contamination_rate`: Numeric. Fraction of reads with adapter sequences (0-1). Default: 0.35 (realistic for fresh sequencing data).
-- `min_quality`: Integer. Minimum Phred quality score. Default: 25.
-- `max_quality`: Integer. Maximum Phred quality score. Default: 40.
-- `error_rate`: Numeric. Sequencing error rate (0-1). Default: 0.015.
-- `read_type`: Character. "single", "R1", or "R2" for paired-end. Default: "single".}
+\item{...}{Additional datatype-specific options. Use `sn_mockdata_options()` to see available options.
+For FASTQ files, common options include:
+- `read_length`: Read length (50, 75, 100, 150, 250, 300, or "short"/"medium"/"long"/"extra_long"/"ultra_long")
+- `read_type`: "single", "R1", "R2" (affects filename when auto-generating)
+- `adapters`: "none", "illumina", "nextera", or TRUE/FALSE
+- `adapter_contamination_rate`: Fraction of reads with adapters (0-1)
+- `min_quality`, `max_quality`: Quality score range
+- `error_rate`: Sequencing error rate (0-1)}
 }
 \value{
 Character. Path to the generated file (invisibly).
@@ -55,8 +52,8 @@ The function supports generating mock files for all datatypes defined in the
 global datatypes.yaml configuration. Common supported datatypes include:
 
 **Sequence Files:**
-- `fasta`: Nucleotide or protein sequences (properly formatted with line breaks)
 - `fastq`: Raw sequencing reads with quality scores and adapters
+- `fasta`: Nucleotide or protein sequences (properly formatted with line breaks)
 
 **Alignment Files:**
 - `sam`: Sequence alignment (text format)
@@ -90,52 +87,29 @@ sn_generate_mockdata("fasta", "test_genome.fa")
 sn_generate_mockdata("fastq", "test_reads.fastq", size = "small")
 sn_generate_mockdata("gtf", "test_annotation.gtf", n_records = 100)
 
-# Generate temporary files
-temp_fasta <- sn_generate_mockdata("fasta", NULL, size = "small")
-temp_fastq <- sn_generate_mockdata("fastq", NULL, size = "medium")
+# Generate temporary files with automatic R1/R2 naming
+temp_r1 <- sn_generate_mockdata("fastq", read_type = "R1", size = "small")
+temp_r2 <- sn_generate_mockdata("fastq", read_type = "R2", size = "small")
 
 # Generate compressed files (auto-detected or explicit)
 sn_generate_mockdata("fastq", "reads.fastq.gz") # Auto-compressed
 sn_generate_mockdata("vcf", "variants.vcf", compress = TRUE)
 
-# Generate FASTQ with custom sequencing parameters
+# Generate FASTQ with specific options
 sn_generate_mockdata("fastq", "reads_150bp.fastq.gz",
-  options = list(
-    read_length = 150, adapters = "illumina",
-    adapter_contamination_rate = 0.1, min_quality = 30
-  )
+  read_length = 150, adapters = "illumina",
+  adapter_contamination_rate = 0.1, min_quality = 30
 )
 
-# Generate FASTQ with different read lengths
-sn_generate_mockdata("fastq", "short_reads.fq.gz",
-  options = list(read_length = "short")
-) # 50bp
-sn_generate_mockdata("fastq", "long_reads.fq.gz",
-  options = list(read_length = "extra_long")
-) # 250bp
+# Generate FASTQ with shortcuts
+sn_generate_mockdata("fastq", "short_reads.fq.gz", read_length = "short") # 50bp
+sn_generate_mockdata("fastq", "long_reads.fq.gz", read_length = "extra_long") # 250bp
 
 # Generate FASTQ without adapters (clean reads)
-sn_generate_mockdata("fastq", "clean_reads.fq.gz",
-  options = list(adapters = "none")
-)
+sn_generate_mockdata("fastq", "clean_reads.fq.gz", adapters = "none")
 
-# Test adapter trimming with fastp (need to specify adapter sequences explicitly)
-# sn_run("fastp", "trim", input1 = "reads_R1.fq.gz", input2 = "reads_R2.fq.gz",
-#        output1 = "trimmed_R1.fq.gz", output2 = "trimmed_R2.fq.gz",
-#        extras = "--adapter_sequence AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
-#                  --adapter_sequence_r2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT")
-
-# Generate with custom options
-sn_generate_mockdata("fasta", "proteins.fa",
-  options = list(sequence_type = "protein", max_length = 200)
-)
-
-# Compatible files are generated automatically
-ref <- sn_generate_mockdata("fasta", "reference.fa", size = "small")
-reads_r1 <- sn_generate_mockdata("fastq", "reads_R1.fastq.gz", size = "medium")
-reads_r2 <- sn_generate_mockdata("fastq", "reads_R2.fastq.gz", size = "medium")
-genes <- sn_generate_mockdata("gtf", "genes.gtf", size = "small")
-# These files will use consistent chromosome names and coordinates
+# See available options for each datatype
+sn_mockdata_options("fastq")
 }
 }
 \seealso{
@@ -143,6 +117,7 @@ Other mock data generation:
 \code{\link{sn_cleanup_mockdata_examples}()},
 \code{\link{sn_generate_mockdata_batch}()},
 \code{\link{sn_generate_rnaseq_dataset}()},
-\code{\link{sn_get_example_value_with_mockdata}()}
+\code{\link{sn_get_example_value_with_mockdata}()},
+\code{\link{sn_mockdata_options}()}
 }
 \concept{mock data generation}

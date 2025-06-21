@@ -4,6 +4,7 @@
 #' @importFrom jinjar render
 #' @importFrom methods new
 #' @importFrom tools R_user_dir
+#' @importFrom glue glue
 #' @import cli
 #' @import fs
 #' @import rlang
